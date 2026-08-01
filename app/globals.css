@@ -261,6 +261,31 @@ button {
   font-size: 13px;
 }
 
+.table-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.export-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.export-button:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
 .input,
 .textarea,
 .select {
@@ -1427,5 +1452,74 @@ button {
   .row-actions .mini-button {
     padding: 6px 7px;
     font-size: 10px;
+  }
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: #ffffff;
+    color: #111827;
+  }
+
+  .page {
+    padding: 0;
+  }
+
+  .page-header,
+  .toolbar-shell,
+  .table-head-actions,
+  .actions-column,
+  .actions-cell,
+  .drag-handle {
+    display: none !important;
+  }
+
+  .shell,
+  .panel,
+  .goal-section,
+  .table-wrap {
+    max-width: none;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .table-panel {
+    padding: 0;
+  }
+
+  .panel-head {
+    margin-bottom: 16px;
+  }
+
+  .goal-sections {
+    gap: 18px;
+  }
+
+  .action-table {
+    min-width: 0;
+    width: 100%;
+    color: #111827;
+  }
+
+  .action-table th,
+  .action-table td {
+    border-color: #d1d5db;
+  }
+
+  .table-sort-button,
+  .action-table p,
+  .decision-hint,
+  .status,
+  .mini-pill {
+    color: #4b5563;
+  }
+
+  .answer-details summary {
+    color: #111827;
   }
 }

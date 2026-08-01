@@ -46,6 +46,10 @@ export function ActionTable({ actions, onEdit, onDelete, onReorder, sortKey, sor
   const goals = actions.filter((action) => action.kind === "goal");
   const acts = actions.filter((action) => action.kind === "act");
 
+  const handleExportPdf = () => {
+    window.print();
+  };
+
   const clearDragState = () => {
     setDraggedId(null);
     setDragOverId(null);
@@ -167,7 +171,10 @@ export function ActionTable({ actions, onEdit, onDelete, onReorder, sortKey, sor
           <h2>Что сейчас важно</h2>
           <p>{sortKey === "manual" ? "Перетащи строку, чтобы собрать собственную очередь внутри каждого раздела." : "Цели и поступки разделены: нажми на заголовок колонки, чтобы изменить сортировку."}</p>
         </div>
-        <span className="score-pill">{actions.length} записей</span>
+        <div className="table-head-actions">
+          <span className="score-pill">{actions.length} записей</span>
+          <button className="export-button" type="button" onClick={handleExportPdf}>Выгрузить PDF</button>
+        </div>
       </div>
       <div className="goal-sections">
         {renderSection("Цели", "Направления на месяцы и годы. Сначала проверяем, действительно ли это твоя цель.", goals)}

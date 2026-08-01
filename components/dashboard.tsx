@@ -8,7 +8,7 @@ import { GoalForm } from "@/components/goal-form";
 import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentComplete } from "@/lib/goal-assessment";
 import { loadActions, saveActions } from "@/lib/action-storage";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
-import type { ActionDraft, ActionItem, ActDraft, GoalDraft } from "@/lib/types";
+import type { ActionDraft, ActionItem, ActDraft, GoalAnswerSet, GoalDraft } from "@/lib/types";
 
 type SortKey = "score" | "title" | "values" | "status" | "manual";
 type SortDirection = "asc" | "desc";
@@ -43,24 +43,38 @@ const defaultGoalDraft: GoalDraft = {
   goalAssessment: createEmptyGoalAssessment()
 };
 
-const seedDrafts: ActDraft[] = [
-  {
-    ...defaultActDraft,
-    title: "Сделать портфолио-лендинг",
-    details: "Вынести сильные кейсы и показать, как я думаю и принимаю решения.",
-    values: ["growth", "impact", "freedom"],
-    answers: { necessity: 7, perspective: 9, alignment: 8, urgency: 6, effort: 5 },
-    status: "reviewed"
+const seedGoalAnswers: GoalAnswerSet = {
+  "identity-1": 4, "identity-2": 4, "identity-3": 4, "identity-4": 3,
+  "values-1": 4, "values-2": 4, "values-3": 3, "values-4": 3,
+  "benefit-1": 4, "benefit-2": 4, "benefit-3": 3, "benefit-4": 4,
+  "process-1": 3, "process-2": 3, "process-3": 3, "process-4": 3,
+  "cost-1": 3, "cost-2": 3, "cost-3": 2, "cost-4": 4,
+  "realism-1": 4, "realism-2": 3, "realism-3": 4, "realism-4": 4
+};
+
+const seedGoalDraft: GoalDraft = {
+  ...defaultGoalDraft,
+  title: "Понять, куда двигаться в ближайший год",
+  details: "Собрать ясное направление, которое поддерживает мои ценности и превращается в конкретные шаги.",
+  values: ["growth", "freedom", "peace"],
+  status: "reviewed",
+  goalAssessment: { ...createEmptyGoalAssessment(), answers: seedGoalAnswers, finalAnswer: "yes" }
+};
+
+const seedActDraft: ActDraft = {
+  ...defaultActDraft,
+  title: "Записать первый шаг по выбранному направлению",
+  details: "Выделить 30 минут и описать один проверяемый шаг на эту неделю.",
+  values: ["growth", "peace"],
+  consequences: {
+    expected: "Появится ясность и конкретное действие вместо размышлений.",
+    ifDone: "Будет понятен следующий шаг и снизится неопределённость.",
+    ifSkipped: "Большое направление останется только идеей.",
+    risks: "Можно потратить больше времени на формулировки, чем планировалось."
   },
-  {
-    ...defaultActDraft,
-    title: "Сделать вечер без экрана",
-    details: "Вернуть энергию и снизить шум, чтобы яснее увидеть приоритеты.",
-    values: ["health", "peace", "family"],
-    answers: { necessity: 8, perspective: 7, alignment: 9, urgency: 8, effort: 2 },
-    status: "active"
-  }
-];
+  answers: { necessity: 8, perspective: 8, alignment: 9, urgency: 7, effort: 2 },
+  status: "active"
+};
 
 function createId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -168,7 +182,7 @@ function draftFromAction(action: ActionItem): ActionDraft {
 }
 
 function seedActions() {
-  return seedDrafts.map((draft, index) => createActionFromDraft(draft, () => `seed-${index + 1}`, "2026-07-31T00:00:00.000Z", index));
+  return [buildActionFromDraft(seedGoalDraft, null, 0), createActionFromDraft(seedActDraft, () => "seed-act", "2026-07-31T00:00:00.000Z", 1)];
 }
 
 function sortActions(actions: ActionItem[], sortKey: SortKey, direction: SortDirection) {
