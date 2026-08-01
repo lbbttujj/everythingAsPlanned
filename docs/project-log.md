@@ -210,3 +210,13 @@
 - `npm run build` — успешно.
 - `http://localhost:3000/` — `HTTP 200` после production-перезапуска.
 - В браузере проверены две кнопки добавления, модальная анкета, секции таблицы, кликабельная сортировка, drag and drop и мобильная адаптация.
+
+#### Деплой на Vercel
+
+- Репозиторий проекта: `https://github.com/lbbttujj/everythingAsPlanned.git`.
+- Production URL: `https://planner-wheat-eta.vercel.app`.
+- Deployment: `READY`, создан 01.08.2026 через `npx vercel --prod`.
+- Vercel автоматически определил Next.js и выполнил `npm run build`; отдельный `vercel.json` не добавлялся.
+- Production-сборка прошла успешно: `npm run typecheck`, `npm run build`.
+- Подключение GitHub Repository в Vercel не завершено: текущий GitHub-сеанс не имеет прав push в репозиторий владельца `lbbttujj`. Деплой выполнен напрямую из локальной директории.
+- Данные по-прежнему хранятся в `LocalStorage`: они отдельны для каждого браузера и устройства.
