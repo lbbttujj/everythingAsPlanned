@@ -9,10 +9,10 @@ import { GoalForm } from "@/components/goal-form";
 import { TodayList } from "@/components/today-list";
 import { WeekCalendar } from "@/components/week-calendar";
 import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentComplete } from "@/lib/goal-assessment";
-import { loadActions, saveActions } from "@/lib/action-storage";
-import { loadBacklog, saveBacklog } from "@/lib/backlog-storage";
+import { deleteAction, deleteBacklogGroup, deleteBacklogNote, loadPlannerData, migrateLegacyLocalData, saveAction, saveBacklogGroup, saveBacklogNote } from "@/lib/planner-repository";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
 import { getLocalDateKey } from "@/lib/schedule";
+import { createClient } from "@/lib/supabase/client";
 import type { ActionDraft, ActionItem, ActDraft, BacklogGroup, GoalAnswerSet, GoalDraft } from "@/lib/types";
 
 type SortKey = "score" | "title" | "values" | "status" | "manual";
@@ -228,7 +228,22 @@ function reorderAction(actions: ActionItem[], draggedId: string, targetId: strin
   return ordered.map((action) => action.kind === dragged.kind ? { ...nextGroup[groupIndex++], order: action.order } : action);
 }
 
-export function Dashboard() {
+function getDataErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "Не удалось загрузить данные.";
+
+  if (message.includes("Could not find the table")) {
+    return "База Supabase ещё не инициализирована. Примени SQL-миграцию из supabase/migrations/20260805214420_planner_auth_schema.sql.";
+  }
+
+  return message;
+}
+
+type DashboardProps = {
+  userId: string;
+  email: string;
+};
+
+export function Dashboard({ userId, email }: DashboardProps) {
   const [actions, setActions] = useState<ActionItem[]>([]);
   const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>([]);
   const [draft, setDraft] = useState<ActionDraft>(cloneDraft(defaultGoalDraft));
@@ -236,28 +251,29 @@ export function Dashboard() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("today");
 
   useEffect(() => {
-    const stored = loadActions();
-    const storedBacklog = loadBacklog();
-    const initialActions = stored && stored.length > 0 ? normalizeActions(stored) : seedActions();
+    const load = async () => {
+      setIsLoading(true);
+      setErrorMessage(null);
+      try {
+        let data = await loadPlannerData();
+        const migrated = await migrateLegacyLocalData(userId);
+        if (migrated) data = await loadPlannerData();
+        setActions(normalizeActions(data.actions));
+        setBacklogGroups(data.backlogGroups);
+      } catch (error) {
+        setErrorMessage(getDataErrorMessage(error));
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    setActions(initialActions);
-    setBacklogGroups(storedBacklog ?? []);
-    setIsReady(true);
-
-    if (!stored || stored.length === 0) saveActions(initialActions);
-  }, []);
-
-  useEffect(() => {
-    if (isReady) saveActions(actions);
-  }, [actions, isReady]);
-
-  useEffect(() => {
-    if (isReady) saveBacklog(backlogGroups);
-  }, [backlogGroups, isReady]);
+    void load();
+  }, [userId]);
 
   const visibleActions = useMemo(() => sortActions(actions, sortKey, sortDirection), [actions, sortKey, sortDirection]);
   const visibleGoals = useMemo(() => visibleActions.filter((action) => action.kind === "goal"), [visibleActions]);
@@ -280,22 +296,24 @@ export function Dashboard() {
     setSortDirection(nextKey === "score" ? "desc" : "asc");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!draft.title.trim()) return;
     if (draft.kind === "goal" && !isGoalAssessmentComplete(draft.goalAssessment.answers, draft.goalAssessment.finalAnswer)) return;
 
-    setActions((current) => {
-      const normalized = normalizeActions(current);
-      const existing = editingId ? normalized.find((action) => action.id === editingId) ?? null : null;
-      const order = existing?.order ?? normalized.length;
-      const next = buildActionFromDraft(draft, existing, order);
+    const normalized = normalizeActions(actions);
+    const existing = editingId ? normalized.find((action) => action.id === editingId) ?? null : null;
+    const order = existing?.order ?? normalized.length;
+    const next = buildActionFromDraft(draft, existing, order);
 
-      return normalizeActions(existing ? normalized.map((action) => action.id === existing.id ? next : action) : [...normalized, next]);
-    });
-
-    setDraft(cloneDraft(defaultGoalDraft));
-    setEditingId(null);
-    setIsModalOpen(false);
+    try {
+      await saveAction(next, userId);
+      setActions(normalizeActions(existing ? normalized.map((action) => action.id === existing.id ? next : action) : [...normalized, next]));
+      setDraft(cloneDraft(defaultGoalDraft));
+      setEditingId(null);
+      setIsModalOpen(false);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось сохранить запись.");
+    }
   };
 
   const handleEdit = (action: ActionItem) => {
@@ -304,51 +322,96 @@ export function Dashboard() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setActions((current) => normalizeActions(current.filter((action) => action.id !== id)));
-    if (editingId === id) handleCancel();
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteAction(id);
+      setActions((current) => normalizeActions(current.filter((action) => action.id !== id)));
+      if (editingId === id) handleCancel();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось удалить запись.");
+    }
   };
 
-  const handleReorder = (draggedId: string, targetId: string) => {
-    setActions((current) => reorderAction(current, draggedId, targetId, sortKey, sortDirection));
-    setSortKey("manual");
+  const handleReorder = async (draggedId: string, targetId: string) => {
+    const next = reorderAction(actions, draggedId, targetId, sortKey, sortDirection);
+    try {
+      await Promise.all(next.map((action) => saveAction(action, userId)));
+      setActions(next);
+      setSortKey("manual");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить порядок.");
+    }
   };
 
-  const handleToggleComplete = (id: string) => {
-    setActions((current) => current.map((action) => action.id === id ? { ...action, isCompleted: !action.isCompleted, updatedAt: new Date().toISOString() } : action));
+  const handleToggleComplete = async (id: string) => {
+    const action = actions.find((item) => item.id === id);
+    if (!action) return;
+    const next = { ...action, isCompleted: !action.isCompleted, updatedAt: new Date().toISOString() };
+    try {
+      await saveAction(next, userId);
+      setActions((current) => current.map((item) => item.id === id ? next : item));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось обновить дело.");
+    }
   };
 
-  const handleCreateBacklogGroup = (title: string) => {
+  const handleCreateBacklogGroup = async (title: string) => {
     const now = new Date().toISOString();
-    setBacklogGroups((current) => [...current, { id: createId(), title: title.trim(), notes: [], order: current.length, createdAt: now }]);
+    const group = { id: createId(), title: title.trim(), notes: [], order: backlogGroups.length, createdAt: now };
+    try {
+      await saveBacklogGroup(group, userId);
+      setBacklogGroups((current) => [...current, group]);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось создать группу.");
+    }
   };
 
-  const handleAddBacklogNote = (groupId: string, text: string) => {
+  const handleAddBacklogNote = async (groupId: string, text: string) => {
     const now = new Date().toISOString();
-    setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: [...group.notes, { id: createId(), text: text.trim(), createdAt: now }] } : group));
+    const note = { id: createId(), text: text.trim(), createdAt: now };
+    try {
+      await saveBacklogNote(groupId, note, userId);
+      setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: [...group.notes, note] } : group));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось добавить заметку.");
+    }
   };
 
-  const handleDeleteBacklogGroup = (groupId: string) => {
-    setBacklogGroups((current) => current.filter((group) => group.id !== groupId));
+  const handleDeleteBacklogGroup = async (groupId: string) => {
+    try {
+      await deleteBacklogGroup(groupId);
+      setBacklogGroups((current) => current.filter((group) => group.id !== groupId));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось удалить группу.");
+    }
   };
 
-  const handleDeleteBacklogNote = (groupId: string, noteId: string) => {
-    setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: group.notes.filter((note) => note.id !== noteId) } : group));
+  const handleDeleteBacklogNote = async (groupId: string, noteId: string) => {
+    try {
+      await deleteBacklogNote(noteId);
+      setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: group.notes.filter((note) => note.id !== noteId) } : group));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось удалить заметку.");
+    }
   };
 
-  const handleReorderBacklogGroups = (draggedGroupId: string, targetGroupId: string) => {
-    setBacklogGroups((current) => {
-      const ordered = [...current].sort((left, right) => left.order - right.order);
+  const handleReorderBacklogGroups = async (draggedGroupId: string, targetGroupId: string) => {
+    const ordered = [...backlogGroups].sort((left, right) => left.order - right.order);
       const draggedIndex = ordered.findIndex((group) => group.id === draggedGroupId);
       const targetIndex = ordered.findIndex((group) => group.id === targetGroupId);
 
-      if (draggedIndex < 0 || targetIndex < 0) return current;
+      if (draggedIndex < 0 || targetIndex < 0) return;
 
       const next = [...ordered];
       const [draggedGroup] = next.splice(draggedIndex, 1);
       next.splice(targetIndex, 0, draggedGroup);
-      return next.map((group, index) => ({ ...group, order: index }));
-    });
+      const reordered = next.map((group, index) => ({ ...group, order: index }));
+    try {
+      await Promise.all(reordered.map((group) => saveBacklogGroup(group, userId)));
+      setBacklogGroups(reordered);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить порядок групп.");
+    }
   };
 
   const handleCancel = () => {
@@ -370,9 +433,19 @@ export function Dashboard() {
     setIsModalOpen(true);
   };
 
+  const handleSignOut = async () => {
+    await createClient().auth.signOut();
+  };
+
+  if (isLoading) {
+    return <main className="auth-shell"><p className="auth-status">Загружаем твой ежедневник…</p></main>;
+  }
+
   return (
     <main className="daily-app">
       <div className="daily-shell">
+        <button className="account-sign-out" type="button" onClick={handleSignOut} title={`Выйти: ${email}`}>Выйти</button>
+        {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
             <TodayList actions={todayActions} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
