@@ -50,6 +50,8 @@ export type ActionItem = {
   goalAssessment?: GoalAssessment;
   score: number;
   status: ActionStatus;
+  isCompleted?: boolean;
+  scheduledFor?: string;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -63,6 +65,7 @@ export type ActDraft = {
   consequences: ConsequenceSet;
   answers: AnswerSet;
   status: ActionStatus;
+  scheduledFor: string;
 };
 
 export type GoalDraft = {
@@ -75,3 +78,17 @@ export type GoalDraft = {
 };
 
 export type ActionDraft = ActDraft | GoalDraft;
+
+export type BacklogNote = {
+  id: string;
+  text: string;
+  createdAt: string;
+};
+
+export type BacklogGroup = {
+  id: string;
+  title: string;
+  notes: BacklogNote[];
+  order: number;
+  createdAt: string;
+};

@@ -30,6 +30,7 @@ export function createActionFromDraft(
     answers: { ...draft.answers },
     score: calculateActScore(draft),
     status: draft.status,
+    scheduledFor: draft.scheduledFor,
     order,
     createdAt,
     updatedAt: createdAt

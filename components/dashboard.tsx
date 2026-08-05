@@ -4,20 +4,26 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ActionForm } from "@/components/action-form";
 import { ActionTable } from "@/components/action-table";
+import { BacklogBoard } from "@/components/backlog-board";
 import { GoalForm } from "@/components/goal-form";
+import { TodayList } from "@/components/today-list";
+import { WeekCalendar } from "@/components/week-calendar";
 import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentComplete } from "@/lib/goal-assessment";
 import { loadActions, saveActions } from "@/lib/action-storage";
+import { loadBacklog, saveBacklog } from "@/lib/backlog-storage";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
-import type { ActionDraft, ActionItem, ActDraft, GoalAnswerSet, GoalDraft } from "@/lib/types";
+import { getLocalDateKey } from "@/lib/schedule";
+import type { ActionDraft, ActionItem, ActDraft, BacklogGroup, GoalAnswerSet, GoalDraft } from "@/lib/types";
 
 type SortKey = "score" | "title" | "values" | "status" | "manual";
 type SortDirection = "asc" | "desc";
+type AppSection = "today" | "week" | "backlog" | "goals";
 
 const defaultActDraft: ActDraft = {
   kind: "act",
   title: "",
   details: "",
-  values: ["health", "peace"],
+  values: [],
   consequences: {
     expected: "",
     ifDone: "",
@@ -31,7 +37,8 @@ const defaultActDraft: ActDraft = {
     urgency: 4,
     effort: 3
   },
-  status: "new"
+  status: "new",
+  scheduledFor: ""
 };
 
 const defaultGoalDraft: GoalDraft = {
@@ -65,7 +72,7 @@ const seedActDraft: ActDraft = {
   ...defaultActDraft,
   title: "Записать первый шаг по выбранному направлению",
   details: "Выделить 30 минут и описать один проверяемый шаг на эту неделю.",
-  values: ["growth", "peace"],
+  values: [],
   consequences: {
     expected: "Появится ясность и конкретное действие вместо размышлений.",
     ifDone: "Будет понятен следующий шаг и снизится неопределённость.",
@@ -119,6 +126,7 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
       },
       score: calculated.score,
       status: draft.status,
+      isCompleted: existing?.isCompleted,
       order,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
@@ -135,6 +143,8 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
     answers: { ...draft.answers },
     score: calculateActScore(draft),
     status: draft.status,
+    isCompleted: existing?.isCompleted ?? false,
+    scheduledFor: draft.scheduledFor || existing?.scheduledFor || getLocalDateKey(),
     order,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now
@@ -177,7 +187,8 @@ function draftFromAction(action: ActionItem): ActionDraft {
     values: [...action.values],
     consequences: { ...action.consequences },
     answers: { ...action.answers },
-    status: action.status
+    status: action.status,
+    scheduledFor: action.scheduledFor ?? getLocalDateKey()
   };
 }
 
@@ -219,18 +230,22 @@ function reorderAction(actions: ActionItem[], draggedId: string, targetId: strin
 
 export function Dashboard() {
   const [actions, setActions] = useState<ActionItem[]>([]);
+  const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>([]);
   const [draft, setDraft] = useState<ActionDraft>(cloneDraft(defaultGoalDraft));
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [activeSection, setActiveSection] = useState<AppSection>("today");
 
   useEffect(() => {
     const stored = loadActions();
+    const storedBacklog = loadBacklog();
     const initialActions = stored && stored.length > 0 ? normalizeActions(stored) : seedActions();
 
     setActions(initialActions);
+    setBacklogGroups(storedBacklog ?? []);
     setIsReady(true);
 
     if (!stored || stored.length === 0) saveActions(initialActions);
@@ -240,7 +255,15 @@ export function Dashboard() {
     if (isReady) saveActions(actions);
   }, [actions, isReady]);
 
+  useEffect(() => {
+    if (isReady) saveBacklog(backlogGroups);
+  }, [backlogGroups, isReady]);
+
   const visibleActions = useMemo(() => sortActions(actions, sortKey, sortDirection), [actions, sortKey, sortDirection]);
+  const visibleGoals = useMemo(() => visibleActions.filter((action) => action.kind === "goal"), [visibleActions]);
+  const todayKey = getLocalDateKey();
+  const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc"), [actions]);
+  const todayActions = useMemo(() => actActions.filter((action) => (action.scheduledFor || todayKey) === todayKey), [actActions, todayKey]);
 
   const handleSort = (nextKey: SortKey) => {
     if (nextKey === "manual") {
@@ -291,45 +314,109 @@ export function Dashboard() {
     setSortKey("manual");
   };
 
+  const handleToggleComplete = (id: string) => {
+    setActions((current) => current.map((action) => action.id === id ? { ...action, isCompleted: !action.isCompleted, updatedAt: new Date().toISOString() } : action));
+  };
+
+  const handleCreateBacklogGroup = (title: string) => {
+    const now = new Date().toISOString();
+    setBacklogGroups((current) => [...current, { id: createId(), title: title.trim(), notes: [], order: current.length, createdAt: now }]);
+  };
+
+  const handleAddBacklogNote = (groupId: string, text: string) => {
+    const now = new Date().toISOString();
+    setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: [...group.notes, { id: createId(), text: text.trim(), createdAt: now }] } : group));
+  };
+
+  const handleDeleteBacklogGroup = (groupId: string) => {
+    setBacklogGroups((current) => current.filter((group) => group.id !== groupId));
+  };
+
+  const handleDeleteBacklogNote = (groupId: string, noteId: string) => {
+    setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: group.notes.filter((note) => note.id !== noteId) } : group));
+  };
+
+  const handleReorderBacklogGroups = (draggedGroupId: string, targetGroupId: string) => {
+    setBacklogGroups((current) => {
+      const ordered = [...current].sort((left, right) => left.order - right.order);
+      const draggedIndex = ordered.findIndex((group) => group.id === draggedGroupId);
+      const targetIndex = ordered.findIndex((group) => group.id === targetGroupId);
+
+      if (draggedIndex < 0 || targetIndex < 0) return current;
+
+      const next = [...ordered];
+      const [draggedGroup] = next.splice(draggedIndex, 1);
+      next.splice(targetIndex, 0, draggedGroup);
+      return next.map((group, index) => ({ ...group, order: index }));
+    });
+  };
+
   const handleCancel = () => {
     setEditingId(null);
     setDraft(cloneDraft(defaultGoalDraft));
     setIsModalOpen(false);
   };
 
-  const handleAddClick = (kind: "goal" | "act") => {
+  const handleAddClick = (kind: "goal" | "act", scheduledFor = getLocalDateKey()) => {
     setEditingId(null);
-    setDraft(cloneDraft(kind === "goal" ? defaultGoalDraft : defaultActDraft));
+    if (kind === "goal") {
+      setDraft(cloneDraft(defaultGoalDraft));
+    } else {
+      const actDraft = cloneDraft(defaultActDraft);
+      if (actDraft.kind === "act") {
+        setDraft({ ...actDraft, scheduledFor });
+      }
+    }
     setIsModalOpen(true);
   };
 
   return (
-    <main className="page">
-      <div className="shell">
-        <header className="page-header">
-          <div>
-            <div className="section-kicker">Личная ценностная карта</div>
-            <h1 className="page-title">Цели и поступки</h1>
-            <p className="page-description">Сначала понять большое направление, затем выбрать ближайшее действие.</p>
-          </div>
-          <div className="add-actions">
-            <button className="add-goal-button" type="button" onClick={() => handleAddClick("goal")}>
-              <span className="add-goal-icon">+</span>
-              <span>Добавить цель</span>
-            </button>
-            <button className="add-act-button" type="button" onClick={() => handleAddClick("act")}>
-              <span className="add-act-icon">↗</span>
-              <span>Добавить поступок</span>
-            </button>
-          </div>
-        </header>
+    <main className="daily-app">
+      <div className="daily-shell">
+        <div className="screen-transition" key={activeSection}>
+          {activeSection === "today" ? (
+            <TodayList actions={todayActions} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
+          ) : activeSection === "week" ? (
+            <WeekCalendar actions={actActions} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
+          ) : activeSection === "backlog" ? (
+            <BacklogBoard groups={backlogGroups} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onReorderGroups={handleReorderBacklogGroups} />
+          ) : (
+            <section className="goals-view">
+              <header className="goals-header">
+                <div>
+                  <div className="section-kicker">Длинный горизонт</div>
+                  <h1>Цели</h1>
+                  <p>Направления, которым стоит уделять время и внимание.</p>
+                </div>
+                <button className="add-goal-button" type="button" onClick={() => handleAddClick("goal")}>
+                  <span className="add-goal-icon">+</span>
+                  <span>Добавить цель</span>
+                </button>
+              </header>
 
-        <section className="toolbar toolbar-shell">
-          <span className="toolbar-label">Нажми на заголовок колонки, чтобы изменить сортировку</span>
-          <span className="toolbar-note">Перетаскивание строки включает ручной порядок</span>
-        </section>
+              <ActionTable actions={visibleGoals} sections="goals" onDelete={handleDelete} onEdit={handleEdit} onReorder={handleReorder} sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+            </section>
+          )}
+        </div>
 
-        <ActionTable actions={visibleActions} onDelete={handleDelete} onEdit={handleEdit} onReorder={handleReorder} sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
+        <nav className="bottom-nav" aria-label="Основные разделы">
+          <button className={`bottom-nav-item ${activeSection === "today" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("today")} aria-current={activeSection === "today" ? "page" : undefined}>
+            <span className="bottom-nav-icon" aria-hidden="true">✓</span>
+            <span>Сегодня</span>
+          </button>
+          <button className={`bottom-nav-item ${activeSection === "week" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("week")} aria-current={activeSection === "week" ? "page" : undefined}>
+            <span className="bottom-nav-icon" aria-hidden="true">▤</span>
+            <span>Неделя</span>
+          </button>
+          <button className={`bottom-nav-item ${activeSection === "backlog" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("backlog")} aria-current={activeSection === "backlog" ? "page" : undefined}>
+            <span className="bottom-nav-icon" aria-hidden="true">⌁</span>
+            <span>Бэклог</span>
+          </button>
+          <button className={`bottom-nav-item ${activeSection === "goals" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("goals")} aria-current={activeSection === "goals" ? "page" : undefined}>
+            <span className="bottom-nav-icon" aria-hidden="true">◎</span>
+            <span>Цели</span>
+          </button>
+        </nav>
 
         {isModalOpen ? (
           <div className="modal-backdrop" role="presentation" onMouseDown={handleCancel}>
@@ -342,7 +429,7 @@ export function Dashboard() {
               {draft.kind === "goal" ? (
                 <GoalForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} />
               ) : (
-                <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} scorePreview={calculateActScore({ answers: draft.answers })} submitLabel={editingId ? "Сохранить изменения" : "Добавить поступок"} />
+                <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} />
               )}
             </div>
           </div>

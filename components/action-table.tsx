@@ -9,6 +9,7 @@ import type { ActionItem } from "@/lib/types";
 
 type ActionTableProps = {
   actions: ActionItem[];
+  sections?: "all" | "goals";
   onEdit: (action: ActionItem) => void;
   onDelete: (id: string) => void;
   onReorder: (draggedId: string, targetId: string) => void;
@@ -40,7 +41,7 @@ function sectionDecision(action: ActionItem) {
   return "Не приоритет сейчас";
 }
 
-export function ActionTable({ actions, onEdit, onDelete, onReorder, sortKey, sortDirection, onSort }: ActionTableProps) {
+export function ActionTable({ actions, sections = "all", onEdit, onDelete, onReorder, sortKey, sortDirection, onSort }: ActionTableProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const goals = actions.filter((action) => action.kind === "goal");
@@ -178,7 +179,7 @@ export function ActionTable({ actions, onEdit, onDelete, onReorder, sortKey, sor
       </div>
       <div className="goal-sections">
         {renderSection("Цели", "Направления на месяцы и годы. Сначала проверяем, действительно ли это твоя цель.", goals)}
-        {renderSection("Бытовое", "Конкретные поступки и эксперименты, которые можно сделать в ближайшее время.", acts)}
+        {sections === "all" ? renderSection("Бытовое", "Конкретные поступки и эксперименты, которые можно сделать в ближайшее время.", acts) : null}
       </div>
     </section>
   );
