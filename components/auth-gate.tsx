@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
+const isGoogleSignInEnabled = false;
+
 type AuthGateProps = {
   children: (user: User) => React.ReactNode;
 };
@@ -70,12 +72,35 @@ function AuthScreen() {
     setMessage(isSignUp && !result.data.session ? "Проверь почту и подтверди аккаунт, затем войди." : "Готово.");
   };
 
+  const signInWithGoogle = async () => {
+    setIsSubmitting(true);
+    setMessage(null);
+    const { error } = await createClient().auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin }
+    });
+
+    if (error) {
+      setIsSubmitting(false);
+      setMessage(error.message);
+    }
+  };
+
   return (
     <main className="auth-shell">
       <form className="auth-card" onSubmit={submit}>
         <span className="section-kicker">Личный ежедневник</span>
         <h1>{isSignUp ? "Создать аккаунт" : "Войти"}</h1>
         <p>Твои цели и дела будут доступны только после входа.</p>
+        {isGoogleSignInEnabled ? (
+          <>
+            <button className="button google-auth-button" type="button" disabled={isSubmitting} onClick={signInWithGoogle}>
+              <span aria-hidden="true">G</span>
+              Продолжить с Google
+            </button>
+            <div className="auth-divider"><span>или через e-mail</span></div>
+          </>
+        ) : null}
         <label className="field-label">E-mail<input className="input" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label className="field-label">Пароль<input className="input" type="password" autoComplete={isSignUp ? "new-password" : "current-password"} minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         {message ? <p className="auth-message">{message}</p> : null}

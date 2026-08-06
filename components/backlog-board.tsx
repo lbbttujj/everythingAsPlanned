@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type PointerEvent, useEffect, useState } from "react";
 
 import type { BacklogGroup } from "@/lib/types";
 
@@ -13,14 +13,23 @@ type BacklogBoardProps = {
   onReorderGroups: (draggedGroupId: string, targetGroupId: string) => void;
 };
 
-export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onReorderGroups }: BacklogBoardProps) {
+export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: deleteGroup, onDeleteNote, onReorderGroups }: BacklogBoardProps) {
   const [isAddingGroup, setIsAddingGroup] = useState(false);
   const [groupTitle, setGroupTitle] = useState("");
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>([]);
+  const [hasInitializedCollapsedGroups, setHasInitializedCollapsedGroups] = useState(false);
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  const [groupPendingDelete, setGroupPendingDelete] = useState<BacklogGroup | null>(null);
+
+  useEffect(() => {
+    if (hasInitializedCollapsedGroups || groups.length === 0) return;
+
+    setCollapsedGroupIds(groups.map((group) => group.id));
+    setHasInitializedCollapsedGroups(true);
+  }, [groups, hasInitializedCollapsedGroups]);
 
   const submitGroup = () => {
     if (!groupTitle.trim()) return;
@@ -43,6 +52,38 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
   const clearDragState = () => {
     setDraggedGroupId(null);
     setDragOverGroupId(null);
+  };
+
+  const onDeleteGroup = (groupId: string) => {
+    setGroupPendingDelete(groups.find((group) => group.id === groupId) ?? null);
+  };
+
+  const findGroupAtPoint = (clientX: number, clientY: number) => {
+    const target = document.elementFromPoint(clientX, clientY);
+    return target?.closest<HTMLElement>("[data-backlog-group-id]")?.dataset.backlogGroupId ?? null;
+  };
+
+  const startTouchDrag = (event: PointerEvent<HTMLSpanElement>, groupId: string) => {
+    if (event.pointerType !== "touch") return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraggedGroupId(groupId);
+  };
+
+  const moveTouchDrag = (event: PointerEvent<HTMLSpanElement>) => {
+    if (event.pointerType !== "touch" || !draggedGroupId) return;
+
+    event.preventDefault();
+    const targetGroupId = findGroupAtPoint(event.clientX, event.clientY);
+    setDragOverGroupId(targetGroupId && targetGroupId !== draggedGroupId ? targetGroupId : null);
+  };
+
+  const endTouchDrag = (event: PointerEvent<HTMLSpanElement>) => {
+    if (event.pointerType !== "touch" || !draggedGroupId) return;
+
+    const targetGroupId = findGroupAtPoint(event.clientX, event.clientY);
+    if (targetGroupId && targetGroupId !== draggedGroupId) onReorderGroups(draggedGroupId, targetGroupId);
+    clearDragState();
   };
 
   return (
@@ -75,6 +116,7 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
             <section
               className={`backlog-group ${collapsedGroupIds.includes(group.id) ? "is-collapsed" : ""} ${dragOverGroupId === group.id ? "is-drag-over" : ""}`}
               key={group.id}
+              data-backlog-group-id={group.id}
               onDragOver={(event) => {
                 if (draggedGroupId === group.id) return;
                 event.preventDefault();
@@ -98,6 +140,10 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
                     setDraggedGroupId(group.id);
                   }}
                   onDragEnd={clearDragState}
+                  onPointerDown={(event) => startTouchDrag(event, group.id)}
+                  onPointerMove={moveTouchDrag}
+                  onPointerUp={endTouchDrag}
+                  onPointerCancel={clearDragState}
                   aria-label={`Переместить группу «${group.title}»`}
                   title="Перетащить группу"
                 >⠿</span>
@@ -143,6 +189,19 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
           <button className="button" type="button" onClick={() => setIsAddingGroup(true)}>Создать группу</button>
         </section>
       )}
+      {groupPendingDelete ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setGroupPendingDelete(null)}>
+          <section className="modal-dialog backlog-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-backlog-group-title" onMouseDown={(event) => event.stopPropagation()}>
+            <span className="section-kicker">Удаление группы</span>
+            <h2 id="delete-backlog-group-title">Удалить «{groupPendingDelete.title}»?</h2>
+            <p>Все заметки в этой группе будут удалены без возможности восстановления.</p>
+            <div className="toolbar toolbar-actions">
+              <button className="button secondary" type="button" onClick={() => setGroupPendingDelete(null)}>Нет</button>
+              <button className="button danger-button" type="button" onClick={() => { deleteGroup(groupPendingDelete.id); setGroupPendingDelete(null); }}>Да, удалить</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

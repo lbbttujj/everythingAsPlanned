@@ -8,7 +8,7 @@ Supabase хранит пользовательские данные ежедне
 
 ### `planner_items`
 
-Цели и дела пользователя. Поля: `id` (UUID), `user_id` (владелец из `auth.users`), `kind` (`goal` или `act`), `title`, `details`, `values` (JSON-массив ценностей), `consequences`, `answers`, `goal_assessment` (JSON), `score`, `status`, `is_completed`, `scheduled_for`, `position`, `created_at`, `updated_at`.
+Цели и дела пользователя. Поля: `id` (UUID), `user_id` (владелец из `auth.users`), `kind` (`goal` или `act`), `title`, `details`, `values` (JSON-массив ценностей), `consequences`, `answers`, `goal_assessment` (JSON), `score`, `status`, `is_important`, `is_completed`, `scheduled_for`, `position`, `created_at`, `updated_at`. Важные дела выводятся первыми в списках дня и недели.
 
 ### `backlog_groups`
 
@@ -35,6 +35,8 @@ Supabase хранит пользовательские данные ежедне
 ## Авторизация
 
 `components/auth-gate.tsx` использует e-mail и пароль: регистрация через `signUp`, вход через `signInWithPassword`, выход через `signOut`. Если в Supabase включено подтверждение e-mail, после регистрации нужно подтвердить письмо и затем войти.
+
+Также доступен Google OAuth через `signInWithOAuth({ provider: "google" })`. Настройка Google Cloud и Redirect URLs описана в `docs/google-auth.md`.
 
 ## Настройка окружения
 

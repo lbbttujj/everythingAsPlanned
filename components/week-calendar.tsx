@@ -21,7 +21,7 @@ export function WeekCalendar({ actions, onAddForDate, onDelete, onEdit, onToggle
   const today = getLocalDateKey();
   const days = getWeekDays();
   const rangeLabel = `${rangeFormatter.format(days[0].date)} — ${rangeFormatter.format(days[days.length - 1].date)}`;
-  const [collapsedDays, setCollapsedDays] = useState<string[]>([]);
+  const [collapsedDays, setCollapsedDays] = useState(() => days.filter((day) => day.key !== today).map((day) => day.key));
 
   const toggleDay = (date: string) => {
     setCollapsedDays((current) => current.includes(date) ? current.filter((item) => item !== date) : [...current, date]);
@@ -58,9 +58,12 @@ export function WeekCalendar({ actions, onAddForDate, onDelete, onEdit, onToggle
               {!isCollapsed && dayActions.length ? (
                 <ul className="week-task-list">
                   {dayActions.map((action) => (
-                    <li className={`week-task ${action.isCompleted ? "is-completed" : ""}`} key={action.id}>
+                    <li className={`week-task ${action.isCompleted ? "is-completed" : ""} ${action.isImportant ? "is-important" : ""}`} key={action.id}>
                       <button className={`todo-check ${action.isCompleted ? "is-completed" : ""}`} type="button" onClick={() => onToggleComplete(action.id)} aria-label={action.isCompleted ? `Вернуть «${action.title}» в дела` : `Отметить «${action.title}» выполненным`}>{action.isCompleted ? "✓" : null}</button>
-                      <strong>{action.title}</strong>
+                      <div className="week-task-copy">
+                        <strong>{action.title}</strong>
+                        {action.isImportant ? <span className="important-badge">Важно</span> : null}
+                      </div>
                       <div className="todo-actions">
                         <button className="todo-action-button" type="button" onClick={() => onEdit(action)} aria-label={`Изменить «${action.title}»`} title="Изменить">✎</button>
                         <button className="todo-action-button danger" type="button" onClick={() => onDelete(action.id)} aria-label={`Удалить «${action.title}»`} title="Удалить">×</button>

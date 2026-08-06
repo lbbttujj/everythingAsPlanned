@@ -12,6 +12,7 @@ type PlannerItemRow = {
   goal_assessment: ActionItem["goalAssessment"] | null;
   score: number;
   status: ActionItem["status"];
+  is_important: boolean;
   is_completed: boolean;
   scheduled_for: string | null;
   position: number;
@@ -45,6 +46,7 @@ function toAction(row: PlannerItemRow): ActionItem {
     goalAssessment: row.goal_assessment ?? undefined,
     score: row.score,
     status: row.status,
+    isImportant: row.is_important,
     isCompleted: row.is_completed,
     scheduledFor: row.scheduled_for ?? undefined,
     order: row.position,
@@ -66,6 +68,7 @@ function toActionRow(item: ActionItem, userId: string) {
     goal_assessment: item.goalAssessment ?? null,
     score: item.score,
     status: item.status,
+    is_important: item.isImportant ?? false,
     is_completed: item.isCompleted ?? false,
     scheduled_for: item.scheduledFor ?? null,
     position: item.order,

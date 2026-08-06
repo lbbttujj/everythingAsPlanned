@@ -38,6 +38,7 @@ const defaultActDraft: ActDraft = {
     effort: 3
   },
   status: "new",
+  isImportant: false,
   scheduledFor: ""
 };
 
@@ -126,6 +127,7 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
       },
       score: calculated.score,
       status: draft.status,
+      isImportant: existing?.isImportant ?? false,
       isCompleted: existing?.isCompleted,
       order,
       createdAt: existing?.createdAt ?? now,
@@ -143,6 +145,7 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
     answers: { ...draft.answers },
     score: calculateActScore(draft),
     status: draft.status,
+    isImportant: draft.isImportant,
     isCompleted: existing?.isCompleted ?? false,
     scheduledFor: draft.scheduledFor || existing?.scheduledFor || getLocalDateKey(),
     order,
@@ -188,6 +191,7 @@ function draftFromAction(action: ActionItem): ActionDraft {
     consequences: { ...action.consequences },
     answers: { ...action.answers },
     status: action.status,
+    isImportant: action.isImportant ?? false,
     scheduledFor: action.scheduledFor ?? getLocalDateKey()
   };
 }
@@ -278,7 +282,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const visibleActions = useMemo(() => sortActions(actions, sortKey, sortDirection), [actions, sortKey, sortDirection]);
   const visibleGoals = useMemo(() => visibleActions.filter((action) => action.kind === "goal"), [visibleActions]);
   const todayKey = getLocalDateKey();
-  const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc"), [actions]);
+  const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc").sort((left, right) => Number(Boolean(right.isImportant)) - Number(Boolean(left.isImportant)) || left.order - right.order), [actions]);
   const todayActions = useMemo(() => actActions.filter((action) => (action.scheduledFor || todayKey) === todayKey), [actActions, todayKey]);
 
   const handleSort = (nextKey: SortKey) => {

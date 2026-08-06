@@ -50,6 +50,7 @@ export type ActionItem = {
   goalAssessment?: GoalAssessment;
   score: number;
   status: ActionStatus;
+  isImportant?: boolean;
   isCompleted?: boolean;
   scheduledFor?: string;
   order: number;
@@ -65,6 +66,7 @@ export type ActDraft = {
   consequences: ConsequenceSet;
   answers: AnswerSet;
   status: ActionStatus;
+  isImportant: boolean;
   scheduledFor: string;
 };
 

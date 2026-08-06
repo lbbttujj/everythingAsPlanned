@@ -53,10 +53,11 @@ export function TodayList({ actions, onAdd, onDelete, onEdit, onToggleComplete }
         {activeActions.length ? (
           <ul className="todo-list">
             {activeActions.map((action) => (
-              <li className="todo-item" key={action.id}>
+              <li className={`todo-item ${action.isImportant ? "is-important" : ""}`} key={action.id}>
                 <button className="todo-check" type="button" onClick={() => onToggleComplete(action.id)} aria-label={`Отметить «${action.title}» выполненным`} />
                 <div className="todo-copy">
                   <strong>{action.title}</strong>
+                  {action.isImportant ? <span className="important-badge">Важно</span> : null}
                 </div>
                 <div className="todo-actions">
                   <button className="todo-action-button" type="button" onClick={() => onEdit(action)} aria-label={`Изменить «${action.title}»`} title="Изменить">✎</button>
@@ -83,10 +84,11 @@ export function TodayList({ actions, onAdd, onDelete, onEdit, onToggleComplete }
           </div>
           <ul className="todo-list is-completed">
             {completedActions.map((action) => (
-              <li className="todo-item" key={action.id}>
+              <li className={`todo-item ${action.isImportant ? "is-important" : ""}`} key={action.id}>
                 <button className="todo-check is-completed" type="button" onClick={() => onToggleComplete(action.id)} aria-label={`Вернуть «${action.title}» в текущие дела`}>✓</button>
                 <div className="todo-copy">
                   <strong>{action.title}</strong>
+                  {action.isImportant ? <span className="important-badge">Важно</span> : null}
                 </div>
               </li>
             ))}

@@ -30,6 +30,11 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
           onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
         />
 
+        <label className="important-toggle">
+          <input type="checkbox" checked={draft.isImportant} onChange={(event) => onDraftChange({ ...draft, isImportant: event.target.checked })} />
+          <span>Важное дело</span>
+        </label>
+
         <div className="toolbar toolbar-actions">
           <button className="button secondary" type="button" onClick={onCancel}>
             Отмена
