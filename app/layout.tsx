@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { PwaServiceWorker } from "@/components/pwa-service-worker";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Planner",
-  description: "Minimal life-values planner with goals, ranking, and quick self-checks"
+  description: "Minimal life-values planner with goals, ranking, and quick self-checks",
+  applicationName: "Всё по плану",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" }
 };
 
 export default function RootLayout({
@@ -14,7 +17,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaServiceWorker />
+      </body>
     </html>
   );
 }
