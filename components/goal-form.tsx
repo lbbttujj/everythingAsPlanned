@@ -18,6 +18,8 @@ type GoalFormProps = {
   onSubmit: () => void;
   onCancel: () => void;
   isEditing: boolean;
+  files: File[];
+  onFilesChange: (files: File[]) => void;
 };
 
 const statusOptions = [
@@ -27,7 +29,7 @@ const statusOptions = [
   { value: "archived", label: "Архив" }
 ] as const;
 
-export function GoalForm({ draft, onDraftChange, onSubmit, onCancel, isEditing }: GoalFormProps) {
+export function GoalForm({ draft, onDraftChange, onSubmit, onCancel, isEditing, files, onFilesChange }: GoalFormProps) {
   const assessment = calculateGoalAssessment(draft.goalAssessment.answers, draft.goalAssessment.finalAnswer);
   const isComplete = isGoalAssessmentComplete(draft.goalAssessment.answers, draft.goalAssessment.finalAnswer);
 
@@ -85,6 +87,12 @@ export function GoalForm({ draft, onDraftChange, onSubmit, onCancel, isEditing }
           value={draft.details}
           onChange={(event) => onDraftChange({ ...draft, details: event.target.value })}
         />
+
+        <label className="attachment-picker">
+          <span>Прикрепить фото или файл</span>
+          <input type="file" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => onFilesChange(event.target.files?.[0] ? [event.target.files[0]] : [])} />
+          {files.length ? <small>Выбран файл: {files[0].name}</small> : null}
+        </label>
 
         <div className="field-group">
           <label className="field-label">Связанные ценности</label>

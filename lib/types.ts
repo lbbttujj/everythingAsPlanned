@@ -9,6 +9,7 @@ export type LifeValueId =
   | "peace";
 
 export type ActionKind = "goal" | "act";
+export type Recurrence = { frequency: "weekly" | "monthly"; days: number[]; endDate: string; endMode: "always" | "until"; seriesId?: string };
 export type ActionStatus = "new" | "reviewed" | "active" | "archived";
 
 export type AnswerSet = {
@@ -51,11 +52,38 @@ export type ActionItem = {
   score: number;
   status: ActionStatus;
   isImportant?: boolean;
+  rolloverCount?: number;
+  recurrence?: Recurrence | null;
+  recurringTaskId?: string | null;
   isCompleted?: boolean;
   scheduledFor?: string;
   order: number;
   createdAt: string;
   updatedAt: string;
+  attachments?: Attachment[];
+};
+
+export type RecurringTask = {
+  id: string;
+  title: string;
+  details: string;
+  values: LifeValueId[];
+  consequences: ConsequenceSet;
+  answers: AnswerSet;
+  status: ActionStatus;
+  isImportant: boolean;
+  recurrence: Recurrence;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Attachment = {
+  id: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
 };
 
 export type ActDraft = {
@@ -67,6 +95,7 @@ export type ActDraft = {
   answers: AnswerSet;
   status: ActionStatus;
   isImportant: boolean;
+  recurrence: Recurrence | null;
   scheduledFor: string;
 };
 
@@ -85,6 +114,7 @@ export type BacklogNote = {
   id: string;
   text: string;
   createdAt: string;
+  attachments?: Attachment[];
 };
 
 export type BacklogGroup = {

@@ -4,8 +4,9 @@ import { useState } from "react";
 
 import { goalBlocks, goalRecommendation, goalScoreLabel } from "@/lib/goal-assessment";
 import { scoreBand } from "@/lib/scoring";
+import { createClient } from "@/lib/supabase/client";
 import { valueLabels } from "@/lib/value-labels";
-import type { ActionItem } from "@/lib/types";
+import type { ActionItem, Attachment } from "@/lib/types";
 
 type ActionTableProps = {
   actions: ActionItem[];
@@ -44,6 +45,7 @@ function sectionDecision(action: ActionItem) {
 export function ActionTable({ actions, sections = "all", onEdit, onDelete, onReorder, sortKey, sortDirection, onSort }: ActionTableProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const goals = actions.filter((action) => action.kind === "goal");
   const acts = actions.filter((action) => action.kind === "act");
 
@@ -54,6 +56,30 @@ export function ActionTable({ actions, sections = "all", onEdit, onDelete, onReo
   const clearDragState = () => {
     setDraggedId(null);
     setDragOverId(null);
+  };
+
+  const viewAttachment = async (attachment: Attachment) => {
+    const supabase = createClient();
+    let storagePath = attachment.storagePath;
+    if (!storagePath) {
+      const { data: attachmentRow, error: attachmentError } = await supabase.from("attachments").select("storage_path").eq("id", attachment.id).single();
+      if (attachmentError) return;
+      storagePath = attachmentRow?.storage_path;
+    }
+    if (!storagePath) return;
+
+    const { data, error } = await supabase.storage.from("planner-attachments").createSignedUrl(storagePath, 60);
+    if (error || !data?.signedUrl) return;
+
+    if (attachment.mimeType.startsWith("image/")) {
+      setImagePreviewUrl(data.signedUrl);
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = data.signedUrl;
+    link.download = attachment.fileName;
+    link.click();
   };
 
   const renderRows = (sectionActions: ActionItem[]) => sectionActions.map((action, index) => (
@@ -89,6 +115,7 @@ export function ActionTable({ actions, sections = "all", onEdit, onDelete, onReo
         <strong>{action.title}</strong>
         <p>{action.details || "Без дополнительного описания"}</p>
         <span className={`status status-${action.status}`}>{statusLabel(action.status)}</span>
+        {action.attachments?.[0] ? <button className="attachment-view-button" type="button" onClick={() => void viewAttachment(action.attachments![0])}>Посмотреть</button> : null}
         <details className="answer-details">
           <summary>{action.kind === "goal" ? "Посмотреть оценку цели" : "Посмотреть ответы"}</summary>
           {action.kind === "goal" && action.goalAssessment ? (
@@ -181,6 +208,11 @@ export function ActionTable({ actions, sections = "all", onEdit, onDelete, onReo
         {renderSection("Цели", "Направления на месяцы и годы. Сначала проверяем, действительно ли это твоя цель.", goals)}
         {sections === "all" ? renderSection("Бытовое", "Конкретные поступки и эксперименты, которые можно сделать в ближайшее время.", acts) : null}
       </div>
+      {imagePreviewUrl ? <ImagePreview url={imagePreviewUrl} onClose={() => setImagePreviewUrl(null)} /> : null}
     </section>
   );
+}
+
+function ImagePreview({ url, onClose }: { url: string; onClose: () => void }) {
+  return <div className="image-preview-backdrop" role="presentation" onMouseDown={onClose}><div className="image-preview-dialog" role="dialog" aria-modal="true" aria-label="Просмотр изображения" onMouseDown={(event) => event.stopPropagation()}><button className="image-preview-close" type="button" onClick={onClose} aria-label="Закрыть">×</button><img src={url} alt="Прикреплённое изображение" /></div></div>;
 }

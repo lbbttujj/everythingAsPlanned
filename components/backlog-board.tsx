@@ -2,11 +2,12 @@
 
 import { type PointerEvent, useEffect, useState } from "react";
 
-import type { BacklogGroup } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import type { Attachment, BacklogGroup } from "@/lib/types";
 
 type BacklogBoardProps = {
   groups: BacklogGroup[];
-  onAddNote: (groupId: string, text: string) => void;
+  onAddNote: (groupId: string, text: string, files: File[]) => void;
   onCreateGroup: (title: string) => void;
   onDeleteGroup: (groupId: string) => void;
   onDeleteNote: (groupId: string, noteId: string) => void;
@@ -18,11 +19,13 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
   const [groupTitle, setGroupTitle] = useState("");
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [noteFiles, setNoteFiles] = useState<File[]>([]);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>([]);
   const [hasInitializedCollapsedGroups, setHasInitializedCollapsedGroups] = useState(false);
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
   const [groupPendingDelete, setGroupPendingDelete] = useState<BacklogGroup | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (hasInitializedCollapsedGroups || groups.length === 0) return;
@@ -40,8 +43,9 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
 
   const submitNote = (groupId: string) => {
     if (!noteText.trim()) return;
-    onAddNote(groupId, noteText);
+    onAddNote(groupId, noteText, noteFiles);
     setNoteText("");
+    setNoteFiles([]);
     setActiveGroupId(null);
   };
 
@@ -84,6 +88,30 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
     const targetGroupId = findGroupAtPoint(event.clientX, event.clientY);
     if (targetGroupId && targetGroupId !== draggedGroupId) onReorderGroups(draggedGroupId, targetGroupId);
     clearDragState();
+  };
+
+  const viewAttachment = async (attachment: Attachment) => {
+    const supabase = createClient();
+    let storagePath = attachment.storagePath;
+    if (!storagePath) {
+      const { data: attachmentRow, error: attachmentError } = await supabase.from("attachments").select("storage_path").eq("id", attachment.id).single();
+      if (attachmentError) return;
+      storagePath = attachmentRow?.storage_path;
+    }
+    if (!storagePath) return;
+
+    const { data, error } = await supabase.storage.from("planner-attachments").createSignedUrl(storagePath, 60);
+    if (error || !data?.signedUrl) return;
+
+    if (attachment.mimeType.startsWith("image/")) {
+      setImagePreviewUrl(data.signedUrl);
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = data.signedUrl;
+    link.download = attachment.fileName;
+    link.click();
   };
 
   return (
@@ -160,6 +188,11 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
 
               {!collapsedGroupIds.includes(group.id) && activeGroupId === group.id ? (
                 <div className="backlog-note-composer">
+                  <label className="attachment-picker">
+                    <span>Прикрепить файл</span>
+                    <input type="file" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setNoteFiles(event.target.files?.[0] ? [event.target.files[0]] : [])} />
+                    {noteFiles.length ? <small>Выбран файл: {noteFiles[0].name}</small> : null}
+                  </label>
                   <textarea autoFocus className="textarea" placeholder="Запиши мысль коротко" value={noteText} onChange={(event) => setNoteText(event.target.value)} />
                   <div>
                     <button className="button secondary" type="button" onClick={() => setActiveGroupId(null)}>Отмена</button>
@@ -173,6 +206,7 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
                   {group.notes.map((note) => (
                     <li key={note.id}>
                       <span>{note.text}</span>
+                      {note.attachments?.[0] ? <button className="attachment-view-button" type="button" onClick={() => void viewAttachment(note.attachments![0])}>Посмотреть</button> : null}
                       <button className="todo-action-button danger" type="button" onClick={() => onDeleteNote(group.id, note.id)} aria-label="Удалить заметку" title="Удалить">×</button>
                     </li>
                   ))}
@@ -189,6 +223,7 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
           <button className="button" type="button" onClick={() => setIsAddingGroup(true)}>Создать группу</button>
         </section>
       )}
+      {imagePreviewUrl ? <div className="image-preview-backdrop" role="presentation" onMouseDown={() => setImagePreviewUrl(null)}><div className="image-preview-dialog" role="dialog" aria-modal="true" aria-label="Просмотр изображения" onMouseDown={(event) => event.stopPropagation()}><button className="image-preview-close" type="button" onClick={() => setImagePreviewUrl(null)} aria-label="Закрыть">×</button><img src={imagePreviewUrl} alt="Прикреплённое изображение" /></div></div> : null}
       {groupPendingDelete ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setGroupPendingDelete(null)}>
           <section className="modal-dialog backlog-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-backlog-group-title" onMouseDown={(event) => event.stopPropagation()}>

@@ -9,11 +9,12 @@ import { GoalForm } from "@/components/goal-form";
 import { TodayList } from "@/components/today-list";
 import { WeekCalendar } from "@/components/week-calendar";
 import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentComplete } from "@/lib/goal-assessment";
-import { deleteAction, deleteBacklogGroup, deleteBacklogNote, loadPlannerData, migrateLegacyLocalData, saveAction, saveBacklogGroup, saveBacklogNote } from "@/lib/planner-repository";
+import { deleteAction, deleteBacklogGroup, deleteBacklogNote, deleteRecurringTask, loadPlannerData, migrateLegacyLocalData, saveAction, saveBacklogGroup, saveBacklogNote, saveRecurringTask, uploadActionAttachments, uploadBacklogNoteAttachments } from "@/lib/planner-repository";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
 import { getLocalDateKey } from "@/lib/schedule";
+import { recurrenceDates } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/client";
-import type { ActionDraft, ActionItem, ActDraft, BacklogGroup, GoalAnswerSet, GoalDraft } from "@/lib/types";
+import type { ActionDraft, ActionItem, ActDraft, BacklogGroup, GoalAnswerSet, GoalDraft, Recurrence, RecurringTask } from "@/lib/types";
 
 type SortKey = "score" | "title" | "values" | "status" | "manual";
 type SortDirection = "asc" | "desc";
@@ -39,6 +40,7 @@ const defaultActDraft: ActDraft = {
   },
   status: "new",
   isImportant: false,
+  recurrence: null,
   scheduledFor: ""
 };
 
@@ -146,6 +148,8 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
     score: calculateActScore(draft),
     status: draft.status,
     isImportant: draft.isImportant,
+    recurrence: draft.recurrence,
+    recurringTaskId: existing?.recurringTaskId ?? null,
     isCompleted: existing?.isCompleted ?? false,
     scheduledFor: draft.scheduledFor || existing?.scheduledFor || getLocalDateKey(),
     order,
@@ -192,12 +196,29 @@ function draftFromAction(action: ActionItem): ActionDraft {
     answers: { ...action.answers },
     status: action.status,
     isImportant: action.isImportant ?? false,
+    recurrence: action.recurrence ?? null,
     scheduledFor: action.scheduledFor ?? getLocalDateKey()
   };
 }
 
 function seedActions() {
   return [buildActionFromDraft(seedGoalDraft, null, 0), createActionFromDraft(seedActDraft, () => "seed-act", "2026-07-31T00:00:00.000Z", 1)];
+}
+
+function createRecurringTask(action: ActionItem, recurrence: Recurrence, id = createId()): RecurringTask {
+  return {
+    id,
+    title: action.title,
+    details: action.details,
+    values: action.values,
+    consequences: action.consequences,
+    answers: action.answers,
+    status: action.status,
+    isImportant: action.isImportant ?? false,
+    recurrence,
+    createdAt: action.createdAt,
+    updatedAt: action.updatedAt
+  };
 }
 
 function sortActions(actions: ActionItem[], sortKey: SortKey, direction: SortDirection) {
@@ -258,6 +279,11 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("today");
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [currentDate, setCurrentDate] = useState(() => getLocalDateKey());
+  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+  const [editingRecurringTaskId, setEditingRecurringTaskId] = useState<string | null>(null);
+  const [editingRecurringSeriesId, setEditingRecurringSeriesId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -279,9 +305,33 @@ export function Dashboard({ userId, email }: DashboardProps) {
     void load();
   }, [userId]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const nextDate = getLocalDateKey();
+      setCurrentDate((date) => date === nextDate ? date : nextDate);
+    }, 60_000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const overdue = actions.filter((action) => action.kind === "act" && !action.isCompleted && action.scheduledFor && action.scheduledFor < currentDate);
+    if (!overdue.length) return;
+
+    const moved = overdue.map((action) => {
+      const rolloverCount = (action.rolloverCount ?? 0) + 1;
+      return { ...action, scheduledFor: currentDate, rolloverCount, isImportant: action.isImportant || rolloverCount > 2, updatedAt: new Date().toISOString() };
+    });
+    void Promise.all(moved.map((action) => saveAction(action, userId)))
+      .then(() => setActions((current) => current.map((action) => moved.find((item) => item.id === action.id) ?? action)))
+      .catch((error: unknown) => setErrorMessage(error instanceof Error ? error.message : "Не удалось перенести незавершённые дела."));
+  }, [actions, currentDate, isLoading, userId]);
+
   const visibleActions = useMemo(() => sortActions(actions, sortKey, sortDirection), [actions, sortKey, sortDirection]);
   const visibleGoals = useMemo(() => visibleActions.filter((action) => action.kind === "goal"), [visibleActions]);
-  const todayKey = getLocalDateKey();
+  const todayKey = currentDate;
   const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc").sort((left, right) => Number(Boolean(right.isImportant)) - Number(Boolean(left.isImportant)) || left.order - right.order), [actions]);
   const todayActions = useMemo(() => actActions.filter((action) => (action.scheduledFor || todayKey) === todayKey), [actActions, todayKey]);
 
@@ -310,10 +360,44 @@ export function Dashboard({ userId, email }: DashboardProps) {
     const next = buildActionFromDraft(draft, existing, order);
 
     try {
-      await saveAction(next, userId);
-      setActions(normalizeActions(existing ? normalized.map((action) => action.id === existing.id ? next : action) : [...normalized, next]));
+      const recurrence = next.kind === "act" && next.recurrence
+        ? { ...next.recurrence, seriesId: editingRecurringTaskId ?? next.recurringTaskId ?? next.recurrence.seriesId ?? createId() }
+        : next.recurrence;
+
+      if (editingRecurringTaskId && next.kind === "act" && recurrence) {
+        const updatedTask = createRecurringTask(next, recurrence, editingRecurringTaskId);
+        const futureActions = normalized.filter((action) => (action.recurringTaskId === editingRecurringTaskId || action.recurrence?.seriesId === editingRecurringSeriesId) && !action.isCompleted && (action.scheduledFor ?? currentDate) >= currentDate);
+        const replacements = recurrenceDates(recurrence, currentDate).map((scheduledFor, index) => ({
+          ...next,
+          id: createId(),
+          recurrence,
+          recurringTaskId: editingRecurringTaskId,
+          scheduledFor,
+          order: normalized.length + index,
+          isCompleted: false
+        }));
+
+        await saveRecurringTask(updatedTask, userId);
+        await Promise.all(futureActions.map((action) => deleteAction(action.id)));
+        await Promise.all(replacements.map((action) => saveAction(action, userId)));
+      } else {
+        const recurringTask = !existing && next.kind === "act" && recurrence ? createRecurringTask(next, recurrence, recurrence.seriesId) : null;
+        const recurringDates = !existing && next.kind === "act" && recurrence ? recurrenceDates(recurrence, next.scheduledFor ?? currentDate) : [];
+        const scheduledActions = recurringDates.length
+          ? recurringDates.map((scheduledFor, index) => ({ ...next, id: index === 0 ? next.id : createId(), recurrence, recurringTaskId: recurringTask?.id ?? null, scheduledFor, order: normalized.length + index }))
+          : [{ ...next, recurrence }];
+        if (recurringTask) await saveRecurringTask(recurringTask, userId);
+        await Promise.all(scheduledActions.map((action) => saveAction(action, userId)));
+      }
+      if (attachmentFiles.length) await uploadActionAttachments(next.id, attachmentFiles, userId);
+      const data = await loadPlannerData();
+      setActions(normalizeActions(data.actions));
+      setBacklogGroups(data.backlogGroups);
       setDraft(cloneDraft(defaultGoalDraft));
+      setAttachmentFiles([]);
       setEditingId(null);
+      setEditingRecurringTaskId(null);
+      setEditingRecurringSeriesId(null);
       setIsModalOpen(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось сохранить запись.");
@@ -322,7 +406,10 @@ export function Dashboard({ userId, email }: DashboardProps) {
 
   const handleEdit = (action: ActionItem) => {
     setEditingId(action.id);
+    setEditingRecurringTaskId(null);
+    setEditingRecurringSeriesId(null);
     setDraft(draftFromAction(action));
+    setAttachmentFiles([]);
     setIsModalOpen(true);
   };
 
@@ -370,12 +457,15 @@ export function Dashboard({ userId, email }: DashboardProps) {
     }
   };
 
-  const handleAddBacklogNote = async (groupId: string, text: string) => {
+  const handleAddBacklogNote = async (groupId: string, text: string, files: File[]) => {
     const now = new Date().toISOString();
     const note = { id: createId(), text: text.trim(), createdAt: now };
     try {
       await saveBacklogNote(groupId, note, userId);
-      setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: [...group.notes, note] } : group));
+      if (files.length) await uploadBacklogNoteAttachments(note.id, files, userId);
+      const data = await loadPlannerData();
+      setActions(normalizeActions(data.actions));
+      setBacklogGroups(data.backlogGroups);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось добавить заметку.");
     }
@@ -420,12 +510,16 @@ export function Dashboard({ userId, email }: DashboardProps) {
 
   const handleCancel = () => {
     setEditingId(null);
+    setEditingRecurringTaskId(null);
+    setEditingRecurringSeriesId(null);
     setDraft(cloneDraft(defaultGoalDraft));
     setIsModalOpen(false);
   };
 
   const handleAddClick = (kind: "goal" | "act", scheduledFor = getLocalDateKey()) => {
     setEditingId(null);
+    setEditingRecurringTaskId(null);
+    setEditingRecurringSeriesId(null);
     if (kind === "goal") {
       setDraft(cloneDraft(defaultGoalDraft));
     } else {
@@ -454,7 +548,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           {activeSection === "today" ? (
             <TodayList actions={todayActions} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
           ) : activeSection === "week" ? (
-            <WeekCalendar actions={actActions} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
+            <WeekCalendar actions={actActions} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} />
           ) : activeSection === "backlog" ? (
             <BacklogBoard groups={backlogGroups} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onReorderGroups={handleReorderBacklogGroups} />
           ) : (
@@ -504,14 +598,20 @@ export function Dashboard({ userId, email }: DashboardProps) {
               </div>
               <div id="item-modal-title" className="sr-only">{editingId ? "Редактировать запись" : "Добавить запись"}</div>
               {draft.kind === "goal" ? (
-                <GoalForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} />
+                <GoalForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
               ) : (
-                <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} />
+                <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
               )}
             </div>
           </div>
         ) : null}
+        {isRecurringModalOpen ? <RecurringManager actions={actions} onClose={() => setIsRecurringModalOpen(false)} onEditSeries={(seriesId) => { const action = actions.find((item) => item.recurrence?.seriesId === seriesId); if (action) { setIsRecurringModalOpen(false); setEditingRecurringTaskId(action.recurringTaskId ?? createId()); setEditingRecurringSeriesId(seriesId); setEditingId(action.id); setDraft(draftFromAction(action)); setAttachmentFiles([]); setIsModalOpen(true); } }} onDeleteSeries={async (seriesId) => { const seriesActions = actions.filter((action) => action.recurrence?.seriesId === seriesId); await Promise.all(seriesActions.map((action) => deleteAction(action.id))); const recurringTaskId = seriesActions[0]?.recurringTaskId; if (recurringTaskId) await deleteRecurringTask(recurringTaskId); setActions((current) => current.filter((action) => action.recurrence?.seriesId !== seriesId)); }} /> : null}
       </div>
     </main>
   );
+}
+
+function RecurringManager({ actions, onClose, onEditSeries, onDeleteSeries }: { actions: ActionItem[]; onClose: () => void; onEditSeries: (seriesId: string) => void; onDeleteSeries: (seriesId: string) => void }) {
+  const series = Array.from(new Map(actions.filter((action) => action.recurrence?.seriesId).map((action) => [action.recurrence!.seriesId!, action])).values());
+  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}><section className="modal-dialog recurring-manager" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><h2>Регулярные дела</h2>{series.length ? series.map((action) => <div className="recurring-manager-row" key={action.recurrence!.seriesId}><span>{action.title}</span><div className="row-actions"><button className="mini-button" type="button" onClick={() => onEditSeries(action.recurrence!.seriesId!)}>Изменить</button><button className="mini-button danger" type="button" onClick={() => onDeleteSeries(action.recurrence!.seriesId!)}>Удалить серию</button></div></div>) : <p>Регулярных дел пока нет.</p>}<button className="button secondary" type="button" onClick={onClose}>Закрыть</button></section></div>;
 }
