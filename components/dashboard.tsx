@@ -550,7 +550,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} />
           ) : activeSection === "backlog" ? (
-            <BacklogBoard groups={backlogGroups} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onReorderGroups={handleReorderBacklogGroups} />
+            <BacklogBoard groups={backlogGroups} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} />
           ) : (
             <section className="goals-view">
               <header className="goals-header">

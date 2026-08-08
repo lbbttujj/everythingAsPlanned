@@ -3,6 +3,7 @@
 import { type PointerEvent, useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { SharedListsBoard } from "@/components/shared-lists-board";
 import type { Attachment, BacklogGroup } from "@/lib/types";
 
 type BacklogBoardProps = {
@@ -12,9 +13,12 @@ type BacklogBoardProps = {
   onDeleteGroup: (groupId: string) => void;
   onDeleteNote: (groupId: string, noteId: string) => void;
   onReorderGroups: (draggedGroupId: string, targetGroupId: string) => void;
+  userId: string;
+  email: string;
 };
 
-export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: deleteGroup, onDeleteNote, onReorderGroups }: BacklogBoardProps) {
+export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: deleteGroup, onDeleteNote, onReorderGroups, userId, email }: BacklogBoardProps) {
+  const [mode, setMode] = useState<"personal" | "shared">("personal");
   const [isAddingGroup, setIsAddingGroup] = useState(false);
   const [groupTitle, setGroupTitle] = useState("");
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -114,6 +118,18 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
     link.click();
   };
 
+  if (mode === "shared") {
+    return (
+      <section className="backlog-view">
+        <header className="backlog-header">
+          <div><div className="section-kicker">Без срока</div><h1>Бэклог</h1><p>Личные заметки и списки, которые можно вести вместе.</p></div>
+        </header>
+        <BacklogModeSwitch mode={mode} onChange={setMode} />
+        <SharedListsBoard userId={userId} email={email} />
+      </section>
+    );
+  }
+
   return (
     <section className="backlog-view">
       <header className="backlog-header">
@@ -127,6 +143,8 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
           Новая группа
         </button>
       </header>
+
+      <BacklogModeSwitch mode={mode} onChange={setMode} />
 
       {isAddingGroup ? (
         <section className="backlog-composer">
@@ -239,4 +257,8 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
       ) : null}
     </section>
   );
+}
+
+function BacklogModeSwitch({ mode, onChange }: { mode: "personal" | "shared"; onChange: (mode: "personal" | "shared") => void }) {
+  return <div className="backlog-mode-switch" role="tablist" aria-label="Режим бэклога"><button className={mode === "personal" ? "is-active" : ""} type="button" role="tab" aria-selected={mode === "personal"} onClick={() => onChange("personal")}>Личный</button><button className={mode === "shared" ? "is-active" : ""} type="button" role="tab" aria-selected={mode === "shared"} onClick={() => onChange("shared")}>Общие</button></div>;
 }

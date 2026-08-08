@@ -124,3 +124,50 @@ export type BacklogGroup = {
   order: number;
   createdAt: string;
 };
+
+export type SharedListMember = {
+  listId: string;
+  userId: string;
+  email: string;
+  isActive: boolean;
+  joinedAt: string;
+  leftAt?: string;
+};
+
+export type SharedListItem = {
+  id: string;
+  listId: string;
+  createdBy?: string;
+  text: string;
+  isCompleted: boolean;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SharedListInvitation = {
+  id: string;
+  listId: string;
+  listTitle: string;
+  inviterId: string;
+  inviterEmail: string;
+  invitedEmail: string;
+  status: "pending" | "accepted" | "declined" | "cancelled";
+  createdAt: string;
+};
+
+export type SharedList = {
+  id: string;
+  ownerId: string;
+  title: string;
+  members: SharedListMember[];
+  items: SharedListItem[];
+  pendingInvitations: SharedListInvitation[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SharedListsData = {
+  lists: SharedList[];
+  invitations: SharedListInvitation[];
+};

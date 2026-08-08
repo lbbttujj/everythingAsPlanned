@@ -1609,6 +1609,12 @@ button {
   font-size: 13px;
 }
 
+.auth-links {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+}
+
 .google-auth-button {
   display: inline-flex;
   align-items: center;
@@ -2447,6 +2453,323 @@ button {
   line-height: 1.5;
 }
 
+.backlog-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 4px;
+}
+
+.backlog-mode-switch button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.backlog-mode-switch button.is-active {
+  background: rgba(124, 156, 255, 0.14);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(124, 156, 255, 0.2);
+}
+
+.shared-status,
+.shared-empty,
+.shared-account-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.shared-lists-overview,
+.shared-list-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.shared-overview-header,
+.shared-list-detail-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.shared-overview-header h2,
+.shared-overview-header p,
+.shared-list-detail-header h2,
+.shared-list-detail-header p {
+  margin: 0;
+}
+
+.shared-overview-header h2,
+.shared-list-detail-header h2 {
+  font-size: 24px;
+  letter-spacing: -0.05em;
+}
+
+.shared-overview-header p,
+.shared-list-detail-header p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shared-invitations {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(124, 156, 255, 0.3);
+  border-radius: 20px;
+  background: linear-gradient(140deg, rgba(124, 156, 255, 0.13), rgba(255, 255, 255, 0.025));
+  padding: 14px;
+}
+
+.shared-invitations h2 {
+  margin: 0 0 2px;
+  font-size: 16px;
+}
+
+.shared-invitations article {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+}
+
+.shared-invitations article > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.shared-invitations article span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.shared-invitations article > div:last-child,
+.shared-owner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.shared-list-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.shared-list-cards > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 3px 12px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  padding: 14px;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.shared-list-cards > button:hover {
+  border-color: rgba(124, 156, 255, 0.42);
+  background: rgba(124, 156, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.shared-list-card-icon {
+  grid-row: 1 / span 2;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(124, 156, 255, 0.13);
+  color: var(--accent);
+  font-size: 17px;
+}
+
+.shared-list-cards strong {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+
+.shared-list-cards small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.shared-account-note {
+  text-align: center;
+}
+
+.shared-back-button {
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.shared-inline-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.shared-members-panel {
+  display: grid;
+  gap: 13px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 14px;
+}
+
+.shared-members-panel h3,
+.shared-members-panel h4 {
+  margin: 0;
+}
+
+.shared-members-panel h3 {
+  font-size: 16px;
+}
+
+.shared-members-panel h4 {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.shared-members-panel ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shared-members-panel li,
+.shared-pending-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 8px;
+}
+
+.shared-members-panel li > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.shared-members-panel li strong,
+.shared-pending-list span {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.shared-members-panel li small {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.shared-invite-form,
+.shared-item-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.shared-pending-list {
+  display: grid;
+  gap: 8px;
+}
+
+.shared-leave-button {
+  justify-self: start;
+}
+
+.shared-items {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shared-items > li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 11px;
+  transition: border-color 160ms ease, background 160ms ease, opacity 160ms ease;
+}
+
+.shared-items > li.is-drag-over {
+  border-color: rgba(124, 156, 255, 0.55);
+  background: rgba(124, 156, 255, 0.09);
+}
+
+.shared-items > li.is-completed {
+  opacity: 0.58;
+}
+
+.shared-items > li.is-completed strong {
+  text-decoration: line-through;
+}
+
+.shared-item-drag-handle {
+  color: var(--accent);
+  cursor: grab;
+  font-size: 18px;
+  line-height: 1;
+  touch-action: none;
+  user-select: none;
+}
+
+.shared-item-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.shared-item-copy strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.shared-item-copy small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .todo-list.is-completed {
   opacity: 0.58;
 }
@@ -2706,6 +3029,28 @@ button {
 }
 
 @media (max-width: 430px) {
+  .shared-overview-header,
+  .shared-list-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .shared-overview-header .today-add-button,
+  .shared-list-detail-header .today-add-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .shared-inline-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .shared-invite-form,
+  .shared-item-composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .goals-header {
     align-items: flex-start;
     flex-direction: column;
