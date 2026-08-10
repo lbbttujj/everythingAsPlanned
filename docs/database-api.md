@@ -36,6 +36,10 @@ Supabase хранит пользовательские данные ежедне
 
 `components/auth-gate.tsx` использует e-mail и пароль: регистрация через `signUp`, вход через `signInWithPassword`, выход через `signOut`. Если в Supabase включено подтверждение e-mail, после регистрации нужно подтвердить письмо и затем войти.
 
+Браузерный Supabase-клиент хранит refresh token в стандартном LocalStorage-ключе и использует `persistSession` вместе с `autoRefreshToken`. При запуске `AuthGate` восстанавливает сохранённую сессию через `onAuthStateChange` и резервный `getSession()`, причём поздний результат загрузки не может перезаписать более новое auth-событие. Пользователь остаётся внутри после обновления страницы и повторного открытия PWA, пока явно не выйдет, не очистит данные сайта или сессия не будет отозвана.
+
+Ограничения длительности хранятся в настройках Auth, а не в PostgreSQL-схеме. Для постоянного входа в Supabase Dashboard → Auth → Sessions не должны быть включены короткие `Time-boxed sessions`, `Inactivity timeout` или ограничение `Single session per user`.
+
 Восстановление пароля использует встроенный Auth-поток Supabase: `resetPasswordForEmail` отправляет ссылку на текущий домен приложения, а после перехода `updateUser({ password })` сохраняет новый пароль в recovery-сессии. В Supabase Auth → URL Configuration должен быть указан production-домен в `Site URL` и разрешён `https://<домен>/**` в `Redirect URLs`; для локальной разработки также нужен `http://localhost:3000/**`.
 
 Также доступен Google OAuth через `signInWithOAuth({ provider: "google" })`. Настройка Google Cloud и Redirect URLs описана в `docs/google-auth.md`.

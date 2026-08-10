@@ -19,12 +19,45 @@ export function AuthGate({ children }: AuthGateProps) {
     if (!isSupabaseConfigured()) return;
 
     const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    let isDisposed = false;
+    let hasAuthEvent = false;
+    let retryTimeout: number | undefined;
+
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
+      if (isDisposed) return;
+      hasAuthEvent = true;
+
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+        return;
+      }
+
+      if (["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED", "PASSWORD_RECOVERY"].includes(event)) {
+        setUser(session?.user ?? null);
+      }
+
       if (event === "PASSWORD_RECOVERY") setIsPasswordRecovery(true);
     });
-    return () => listener.subscription.unsubscribe();
+
+    const restoreSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (isDisposed || hasAuthEvent) return;
+
+      if (error) {
+        retryTimeout = window.setTimeout(() => void restoreSession(), 1500);
+        return;
+      }
+
+      setUser(data.session?.user ?? null);
+    };
+
+    void restoreSession();
+
+    return () => {
+      isDisposed = true;
+      if (retryTimeout !== undefined) window.clearTimeout(retryTimeout);
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   if (!isSupabaseConfigured()) {
