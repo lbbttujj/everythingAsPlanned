@@ -120,6 +120,8 @@ export type BacklogNote = {
 export type BacklogGroup = {
   id: string;
   title: string;
+  parentId: string | null;
+  icon: string | null;
   notes: BacklogNote[];
   order: number;
   createdAt: string;

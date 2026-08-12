@@ -26,6 +26,8 @@ type PlannerItemRow = {
 type BacklogGroupRow = {
   id: string;
   title: string;
+  parent_id: string | null;
+  icon: string | null;
   position: number;
   created_at: string;
 };
@@ -106,6 +108,8 @@ function toBacklogGroup(row: BacklogGroupRow, notes: BacklogNoteRow[], attachmen
   return {
     id: row.id,
     title: row.title,
+    parentId: row.parent_id,
+    icon: row.icon,
     order: row.position,
     createdAt: row.created_at,
     notes: notes
@@ -183,17 +187,17 @@ export async function saveBacklogGroup(group: BacklogGroup, userId: string) {
     id: group.id,
     user_id: userId,
     title: group.title,
+    parent_id: group.parentId ?? null,
+    icon: group.icon ?? null,
     position: group.order,
     created_at: group.createdAt
   });
   throwIfError(error);
 }
 
-export async function deleteBacklogGroup(id: string) {
+export async function deleteBacklogGroup(id: string, noteIds: string[] = []) {
   const supabase = createClient();
-  const { data: notes, error: notesError } = await supabase.from("backlog_notes").select("id").eq("group_id", id);
-  throwIfError(notesError);
-  await Promise.all((notes ?? []).map((note: { id: string }) => removeAttachmentObjects("backlog_note_id", note.id)));
+  await Promise.all(noteIds.map((noteId) => removeAttachmentObjects("backlog_note_id", noteId)));
   const { error } = await supabase.from("backlog_groups").delete().eq("id", id);
   throwIfError(error);
 }

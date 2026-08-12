@@ -253,6 +253,23 @@ function reorderAction(actions: ActionItem[], draggedId: string, targetId: strin
   return ordered.map((action) => action.kind === dragged.kind ? { ...nextGroup[groupIndex++], order: action.order } : action);
 }
 
+function collectBacklogSubtreeIds(groups: BacklogGroup[], rootId: string) {
+  const ids = new Set([rootId]);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    for (const group of groups) {
+      if (group.parentId && ids.has(group.parentId) && !ids.has(group.id)) {
+        ids.add(group.id);
+        changed = true;
+      }
+    }
+  }
+
+  return ids;
+}
+
 function getDataErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Не удалось загрузить данные.";
 
@@ -462,14 +479,33 @@ export function Dashboard({ userId, email }: DashboardProps) {
     }
   };
 
-  const handleCreateBacklogGroup = async (title: string) => {
+  const handleCreateBacklogGroup = async (title: string, parentId: string | null, icon: string) => {
     const now = new Date().toISOString();
-    const group = { id: createId(), title: title.trim(), notes: [], order: backlogGroups.length, createdAt: now };
+    const siblingCount = backlogGroups.filter((group) => group.parentId === parentId).length;
+    const group: BacklogGroup = { id: createId(), title: title.trim(), parentId, icon, notes: [], order: siblingCount, createdAt: now };
     try {
       await saveBacklogGroup(group, userId);
       setBacklogGroups((current) => [...current, group]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось создать группу.");
+    }
+  };
+
+  const handleUpdateBacklogGroup = async (groupId: string, changes: Partial<Pick<BacklogGroup, "title" | "parentId" | "icon">>) => {
+    const group = backlogGroups.find((item) => item.id === groupId);
+    if (!group) return;
+    const parentId = changes.parentId === undefined ? group.parentId : changes.parentId;
+    const next = {
+      ...group,
+      ...changes,
+      parentId,
+      order: parentId === group.parentId ? group.order : backlogGroups.filter((item) => item.parentId === parentId && item.id !== groupId).length
+    };
+    try {
+      await saveBacklogGroup(next, userId);
+      setBacklogGroups((current) => current.map((item) => item.id === groupId ? next : item));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить группу.");
     }
   };
 
@@ -488,11 +524,25 @@ export function Dashboard({ userId, email }: DashboardProps) {
   };
 
   const handleDeleteBacklogGroup = async (groupId: string) => {
+    const subtreeIds = collectBacklogSubtreeIds(backlogGroups, groupId);
+    const noteIds = backlogGroups.filter((group) => subtreeIds.has(group.id)).flatMap((group) => group.notes.map((note) => note.id));
     try {
-      await deleteBacklogGroup(groupId);
-      setBacklogGroups((current) => current.filter((group) => group.id !== groupId));
+      await deleteBacklogGroup(groupId, noteIds);
+      setBacklogGroups((current) => current.filter((group) => !subtreeIds.has(group.id)));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось удалить группу.");
+    }
+  };
+
+  const handleUpdateBacklogNote = async (groupId: string, noteId: string, text: string) => {
+    const note = backlogGroups.find((group) => group.id === groupId)?.notes.find((item) => item.id === noteId);
+    if (!note || !text.trim()) return;
+    const next = { ...note, text: text.trim() };
+    try {
+      await saveBacklogNote(groupId, next, userId);
+      setBacklogGroups((current) => current.map((group) => group.id === groupId ? { ...group, notes: group.notes.map((item) => item.id === noteId ? next : item) } : group));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить запись.");
     }
   };
 
@@ -506,7 +556,10 @@ export function Dashboard({ userId, email }: DashboardProps) {
   };
 
   const handleReorderBacklogGroups = async (draggedGroupId: string, targetGroupId: string) => {
-    const ordered = [...backlogGroups].sort((left, right) => left.order - right.order);
+    const dragged = backlogGroups.find((group) => group.id === draggedGroupId);
+    const target = backlogGroups.find((group) => group.id === targetGroupId);
+    if (!dragged || !target || dragged.parentId !== target.parentId) return;
+    const ordered = backlogGroups.filter((group) => group.parentId === dragged.parentId).sort((left, right) => left.order - right.order);
       const draggedIndex = ordered.findIndex((group) => group.id === draggedGroupId);
       const targetIndex = ordered.findIndex((group) => group.id === targetGroupId);
 
@@ -518,7 +571,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
       const reordered = next.map((group, index) => ({ ...group, order: index }));
     try {
       await Promise.all(reordered.map((group) => saveBacklogGroup(group, userId)));
-      setBacklogGroups(reordered);
+      setBacklogGroups((current) => current.map((group) => reordered.find((item) => item.id === group.id) ?? group));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить порядок групп.");
     }
@@ -578,7 +631,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} />
           ) : activeSection === "backlog" ? (
-            <BacklogBoard groups={backlogGroups} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} />
+            <BacklogBoard groups={backlogGroups} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} />
           ) : (
             <section className="goals-view">
               <header className="goals-header">
@@ -612,7 +665,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           </button>
           <button className={`bottom-nav-item ${activeSection === "backlog" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("backlog")} aria-current={activeSection === "backlog" ? "page" : undefined}>
             <span className="bottom-nav-icon" aria-hidden="true">⌁</span>
-            <span>Бэклог</span>
+            <span>Мысли</span>
           </button>
           <button className={`bottom-nav-item ${activeSection === "goals" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("goals")} aria-current={activeSection === "goals" ? "page" : undefined}>
             <span className="bottom-nav-icon" aria-hidden="true">◎</span>

@@ -10,13 +10,13 @@ Supabase хранит пользовательские данные ежедне
 
 Цели и дела пользователя. Поля: `id` (UUID), `user_id` (владелец из `auth.users`), `kind` (`goal` или `act`), `title`, `details`, `values` (JSON-массив ценностей), `consequences`, `answers`, `goal_assessment` (JSON), `score`, `status`, `is_important`, `is_completed`, `scheduled_for`, `position`, `created_at`, `updated_at`. Важные дела выводятся первыми в списках дня и недели.
 
-### `backlog_groups`
+### `backlog_groups` — группы «Мыслей»
 
-Группы заметок: `id`, `user_id`, `title`, `position`, `created_at`, `updated_at`.
+Иерархические группы заметок: `id`, `user_id`, `title`, `icon`, `parent_id`, `position`, `created_at`, `updated_at`. `parent_id` ссылается на эту же таблицу и использует `ON DELETE CASCADE`: удаление группы удаляет все вложенные группы. `NULL` означает общий корень раздела «Мысли». Триггер запрещает циклы, перенос группы внутрь собственного потомка и связь с группой другого пользователя.
 
 ### `backlog_notes`
 
-Заметки в группе: `id`, `user_id`, `group_id` (FK с каскадным удалением), `text`, `created_at`, `updated_at`.
+Записи внутри группы: `id`, `user_id`, `group_id` (FK с каскадным удалением), `text`, `created_at`, `updated_at`. Записи можно создавать, редактировать и удалять.
 
 Каждая таблица имеет RLS: аутентифицированный пользователь может `select`, `insert`, `update`, `delete` только строк, где `user_id = auth.uid()`. Для `insert` и `update` применяется `WITH CHECK`, поэтому владельца нельзя подменить.
 
@@ -26,8 +26,9 @@ Supabase хранит пользовательские данные ежедне
 
 - `loadPlannerData()` — загружает записи, группы и заметки текущего пользователя.
 - `saveAction(item)` / `deleteAction(id)` — создаёт, обновляет или удаляет цель/дело.
-- `saveBacklogGroup(group)` / `deleteBacklogGroup(id)` — работает с группой.
-- `saveBacklogNote(note)` / `deleteBacklogNote(id)` — работает с заметкой.
+- `saveBacklogGroup(group)` — создаёт, переименовывает, перемещает и меняет иконку группы.
+- `deleteBacklogGroup(id, noteIds)` — удаляет файлы записей через Storage API, затем удаляет всё дерево группы каскадом.
+- `saveBacklogNote(note)` / `deleteBacklogNote(id)` — создаёт, редактирует и удаляет запись.
 - `migrateLegacyLocalData()` — один раз переносит прежние `planner.actions.v3` и `planner.backlog.v1`, удаляя их только после успешной записи.
 
 Ошибки Supabase пробрасываются в интерфейс. При ошибке пользователь видит сообщение, а локальное состояние не считается сохранённым.
@@ -50,7 +51,7 @@ Supabase хранит пользовательские данные ежедне
 
 ## Вложения
 
-Приватный bucket `planner-attachments` хранит файлы до 6 МБ. Таблица `attachments` связывает каждый объект с целью/делом (`planner_item_id`) или заметкой бэклога (`backlog_note_id`), хранит имя, MIME-тип, размер и Storage path. Репозиторий загружает файлы после сохранения записи и удаляет объекты Storage при удалении цели, дела, заметки или всей группы бэклога.
+Приватный bucket `planner-attachments` хранит файлы до 6 МБ. Таблица `attachments` связывает каждый объект с целью/делом (`planner_item_id`) или записью «Мыслей» (`backlog_note_id`), хранит имя, MIME-тип, размер и Storage path. Репозиторий загружает файлы после сохранения записи и удаляет объекты Storage при удалении цели, дела, записи или всего дерева группы.
 
 ## Регулярные дела
 
@@ -60,7 +61,7 @@ Supabase хранит пользовательские данные ежедне
 
 ## Совместные списки
 
-Совместные списки хранятся отдельно от личного бэклога:
+Совместные списки хранятся отдельно от личных «Мыслей»:
 
 - `shared_lists` — название и единственный владелец списка;
 - `shared_list_members` — участники, их e-mail и состояние доступа;

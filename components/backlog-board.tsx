@@ -1,60 +1,115 @@
 "use client";
 
-import { type PointerEvent, useEffect, useState } from "react";
+import { type PointerEvent, type ReactNode, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
-import { createClient } from "@/lib/supabase/client";
 import { SharedListsBoard } from "@/components/shared-lists-board";
+import { createClient } from "@/lib/supabase/client";
 import type { Attachment, BacklogGroup } from "@/lib/types";
+
+const GROUP_ICONS = ["✦", "♥", "💡", "📝", "📚", "🏠", "✈️", "🎯", "🧩", "💼", "🌱"];
 
 type BacklogBoardProps = {
   groups: BacklogGroup[];
   onAddNote: (groupId: string, text: string, files: File[]) => void;
-  onCreateGroup: (title: string) => void;
+  onCreateGroup: (title: string, parentId: string | null, icon: string) => void;
   onDeleteGroup: (groupId: string) => void;
   onDeleteNote: (groupId: string, noteId: string) => void;
+  onUpdateGroup: (groupId: string, changes: Partial<Pick<BacklogGroup, "title" | "parentId" | "icon">>) => void;
+  onUpdateNote: (groupId: string, noteId: string, text: string) => void;
   onReorderGroups: (draggedGroupId: string, targetGroupId: string) => void;
   userId: string;
   email: string;
 };
 
-export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: deleteGroup, onDeleteNote, onReorderGroups, userId, email }: BacklogBoardProps) {
+function fallbackIcon(group: Pick<BacklogGroup, "id" | "title" | "icon">) {
+  if (group.icon) return group.icon;
+  const source = group.id || group.title;
+  const index = [...source].reduce((sum, character) => sum + character.charCodeAt(0), 0) % GROUP_ICONS.length;
+  return GROUP_ICONS[index];
+}
+
+function descendantIds(groups: BacklogGroup[], rootId: string) {
+  const ids = new Set([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const group of groups) {
+      if (group.parentId && ids.has(group.parentId) && !ids.has(group.id)) {
+        ids.add(group.id);
+        changed = true;
+      }
+    }
+  }
+  return ids;
+}
+
+function buildBreadcrumbs(groups: BacklogGroup[], currentGroupId: string | null) {
+  const result: BacklogGroup[] = [];
+  let cursor = currentGroupId;
+  const visited = new Set<string>();
+  while (cursor && !visited.has(cursor)) {
+    visited.add(cursor);
+    const group = groups.find((item) => item.id === cursor);
+    if (!group) break;
+    result.unshift(group);
+    cursor = group.parentId;
+  }
+  return result;
+}
+
+export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onUpdateGroup, onUpdateNote, onReorderGroups, userId, email }: BacklogBoardProps) {
   const [mode, setMode] = useState<"personal" | "shared">("personal");
+  const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
   const [isAddingGroup, setIsAddingGroup] = useState(false);
   const [groupTitle, setGroupTitle] = useState("");
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [groupIcon, setGroupIcon] = useState(GROUP_ICONS[0]);
+  const [isAddingNote, setIsAddingNote] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteFiles, setNoteFiles] = useState<File[]>([]);
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>([]);
-  const [hasInitializedCollapsedGroups, setHasInitializedCollapsedGroups] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
+  const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
+  const [groupDialog, setGroupDialog] = useState<"rename" | "move" | "delete" | null>(null);
+  const [renamedTitle, setRenamedTitle] = useState("");
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
-  const [groupPendingDelete, setGroupPendingDelete] = useState<BacklogGroup | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (hasInitializedCollapsedGroups || groups.length === 0) return;
+  const currentGroup = groups.find((group) => group.id === currentGroupId) ?? null;
+  const breadcrumbs = useMemo(() => buildBreadcrumbs(groups, currentGroupId), [groups, currentGroupId]);
+  const visibleGroups = useMemo(() => groups.filter((group) => group.parentId === currentGroupId).sort((left, right) => left.order - right.order), [groups, currentGroupId]);
+  const blockedMoveIds = currentGroup ? descendantIds(groups, currentGroup.id) : new Set<string>();
+  const moveTargets = groups.filter((group) => !blockedMoveIds.has(group.id)).sort((left, right) => left.title.localeCompare(right.title, "ru"));
 
-    setCollapsedGroupIds(groups.map((group) => group.id));
-    setHasInitializedCollapsedGroups(true);
-  }, [groups, hasInitializedCollapsedGroups]);
+  const openGroup = (groupId: string) => {
+    setCurrentGroupId(groupId);
+    setIsGroupMenuOpen(false);
+    setIsAddingGroup(false);
+    setIsAddingNote(false);
+  };
 
   const submitGroup = () => {
     if (!groupTitle.trim()) return;
-    onCreateGroup(groupTitle);
+    onCreateGroup(groupTitle, currentGroupId, groupIcon);
     setGroupTitle("");
+    setGroupIcon(GROUP_ICONS[0]);
     setIsAddingGroup(false);
   };
 
-  const submitNote = (groupId: string) => {
-    if (!noteText.trim()) return;
-    onAddNote(groupId, noteText, noteFiles);
+  const submitNote = () => {
+    if (!currentGroupId || !noteText.trim()) return;
+    onAddNote(currentGroupId, noteText, noteFiles);
     setNoteText("");
     setNoteFiles([]);
-    setActiveGroupId(null);
+    setIsAddingNote(false);
   };
 
-  const toggleGroup = (groupId: string) => {
-    setCollapsedGroupIds((current) => current.includes(groupId) ? current.filter((item) => item !== groupId) : [...current, groupId]);
+  const submitNoteEdit = (noteId: string) => {
+    if (!currentGroupId || !editingNoteText.trim()) return;
+    onUpdateNote(currentGroupId, noteId, editingNoteText);
+    setEditingNoteId(null);
+    setEditingNoteText("");
   };
 
   const clearDragState = () => {
@@ -62,35 +117,25 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
     setDragOverGroupId(null);
   };
 
-  const onDeleteGroup = (groupId: string) => {
-    setGroupPendingDelete(groups.find((group) => group.id === groupId) ?? null);
-  };
-
-  const findGroupAtPoint = (clientX: number, clientY: number) => {
-    const target = document.elementFromPoint(clientX, clientY);
-    return target?.closest<HTMLElement>("[data-backlog-group-id]")?.dataset.backlogGroupId ?? null;
-  };
+  const findGroupAtPoint = (clientX: number, clientY: number) => document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-thought-group-id]")?.dataset.thoughtGroupId ?? null;
 
   const startTouchDrag = (event: PointerEvent<HTMLSpanElement>, groupId: string) => {
     if (event.pointerType !== "touch") return;
-
     event.currentTarget.setPointerCapture(event.pointerId);
     setDraggedGroupId(groupId);
   };
 
   const moveTouchDrag = (event: PointerEvent<HTMLSpanElement>) => {
     if (event.pointerType !== "touch" || !draggedGroupId) return;
-
     event.preventDefault();
-    const targetGroupId = findGroupAtPoint(event.clientX, event.clientY);
-    setDragOverGroupId(targetGroupId && targetGroupId !== draggedGroupId ? targetGroupId : null);
+    const targetId = findGroupAtPoint(event.clientX, event.clientY);
+    setDragOverGroupId(targetId && targetId !== draggedGroupId ? targetId : null);
   };
 
   const endTouchDrag = (event: PointerEvent<HTMLSpanElement>) => {
     if (event.pointerType !== "touch" || !draggedGroupId) return;
-
-    const targetGroupId = findGroupAtPoint(event.clientX, event.clientY);
-    if (targetGroupId && targetGroupId !== draggedGroupId) onReorderGroups(draggedGroupId, targetGroupId);
+    const targetId = findGroupAtPoint(event.clientX, event.clientY);
+    if (targetId && targetId !== draggedGroupId) onReorderGroups(draggedGroupId, targetId);
     clearDragState();
   };
 
@@ -98,20 +143,17 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
     const supabase = createClient();
     let storagePath = attachment.storagePath;
     if (!storagePath) {
-      const { data: attachmentRow, error: attachmentError } = await supabase.from("attachments").select("storage_path").eq("id", attachment.id).single();
-      if (attachmentError) return;
-      storagePath = attachmentRow?.storage_path;
+      const { data, error } = await supabase.from("attachments").select("storage_path").eq("id", attachment.id).single();
+      if (error) return;
+      storagePath = data?.storage_path;
     }
     if (!storagePath) return;
-
     const { data, error } = await supabase.storage.from("planner-attachments").createSignedUrl(storagePath, 60);
     if (error || !data?.signedUrl) return;
-
     if (attachment.mimeType.startsWith("image/")) {
       setImagePreviewUrl(data.signedUrl);
       return;
     }
-
     const link = document.createElement("a");
     link.href = data.signedUrl;
     link.download = attachment.fileName;
@@ -120,10 +162,8 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
 
   if (mode === "shared") {
     return (
-      <section className="backlog-view">
-        <header className="backlog-header">
-          <div><div className="section-kicker">Без срока</div><h1>Бэклог</h1><p>Личные заметки и списки, которые можно вести вместе.</p></div>
-        </header>
+      <section className="backlog-view thoughts-view">
+        <ThoughtsHeader />
         <BacklogModeSwitch mode={mode} onChange={setMode} />
         <SharedListsBoard userId={userId} email={email} />
       </section>
@@ -131,134 +171,114 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup: 
   }
 
   return (
-    <section className="backlog-view">
-      <header className="backlog-header">
-        <div>
-          <div className="section-kicker">Без срока</div>
-          <h1>Бэклог</h1>
-          <p>Идеи и заметки, к которым можно вернуться позже.</p>
-        </div>
-        <button className="today-add-button" type="button" onClick={() => setIsAddingGroup(true)}>
-          <span>+</span>
-          Новая группа
-        </button>
-      </header>
+    <section className="backlog-view thoughts-view">
+      {!currentGroup ? <ThoughtsHeader /> : null}
+      {!currentGroup ? <BacklogModeSwitch mode={mode} onChange={setMode} /> : null}
 
-      <BacklogModeSwitch mode={mode} onChange={setMode} />
-
-      {isAddingGroup ? (
-        <section className="backlog-composer">
-          <input autoFocus className="input" placeholder="Например, «Поездки» или «Идеи для дома»" value={groupTitle} onChange={(event) => setGroupTitle(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitGroup()} />
-          <div>
-            <button className="button secondary" type="button" onClick={() => setIsAddingGroup(false)}>Отмена</button>
-            <button className="button" type="button" onClick={submitGroup}>Создать</button>
-          </div>
-        </section>
-      ) : null}
-
-      {groups.length ? (
-        <div className="backlog-groups">
-          {groups.map((group) => (
-            <section
-              className={`backlog-group ${collapsedGroupIds.includes(group.id) ? "is-collapsed" : ""} ${dragOverGroupId === group.id ? "is-drag-over" : ""}`}
-              key={group.id}
-              data-backlog-group-id={group.id}
-              onDragOver={(event) => {
-                if (draggedGroupId === group.id) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-                setDragOverGroupId(group.id);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                const sourceId = event.dataTransfer.getData("text/plain") || draggedGroupId;
-                if (sourceId && sourceId !== group.id) onReorderGroups(sourceId, group.id);
-                clearDragState();
-              }}
-            >
-              <header className="backlog-group-header">
-                <span
-                  className="backlog-drag-handle"
-                  draggable
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData("text/plain", group.id);
-                    setDraggedGroupId(group.id);
-                  }}
-                  onDragEnd={clearDragState}
-                  onPointerDown={(event) => startTouchDrag(event, group.id)}
-                  onPointerMove={moveTouchDrag}
-                  onPointerUp={endTouchDrag}
-                  onPointerCancel={clearDragState}
-                  aria-label={`Переместить группу «${group.title}»`}
-                  title="Перетащить группу"
-                >⠿</span>
-                <button className="backlog-group-toggle" type="button" onClick={() => toggleGroup(group.id)} aria-expanded={!collapsedGroupIds.includes(group.id)}>
-                  <span>{group.title}</span>
-                  <small>{group.notes.length} {group.notes.length === 1 ? "заметка" : "заметок"}</small>
-                  <i aria-hidden="true">⌄</i>
-                </button>
-                <div className="todo-actions">
-                  <button className="todo-action-button" type="button" onClick={() => { setActiveGroupId(group.id); setNoteText(""); }} aria-label={`Добавить заметку в «${group.title}»`} title="Добавить заметку">+</button>
-                  <button className="todo-action-button danger" type="button" onClick={() => onDeleteGroup(group.id)} aria-label={`Удалить группу «${group.title}»`} title="Удалить группу">×</button>
-                </div>
-              </header>
-
-              {!collapsedGroupIds.includes(group.id) && activeGroupId === group.id ? (
-                <div className="backlog-note-composer">
-                  <label className="attachment-picker">
-                    <span>Прикрепить файл</span>
-                    <input type="file" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setNoteFiles(event.target.files?.[0] ? [event.target.files[0]] : [])} />
-                    {noteFiles.length ? <small>Выбран файл: {noteFiles[0].name}</small> : null}
-                  </label>
-                  <textarea autoFocus className="textarea" placeholder="Запиши мысль коротко" value={noteText} onChange={(event) => setNoteText(event.target.value)} />
-                  <div>
-                    <button className="button secondary" type="button" onClick={() => setActiveGroupId(null)}>Отмена</button>
-                    <button className="button" type="button" onClick={() => submitNote(group.id)}>Добавить</button>
-                  </div>
+      {currentGroup ? (
+        <>
+          <nav className="thoughts-breadcrumbs" aria-label="Путь группы">
+            <button type="button" onClick={() => setCurrentGroupId(null)}>Мысли</button>
+            {breadcrumbs.map((group, index) => <span key={group.id}><i>/</i><button type="button" onClick={() => setCurrentGroupId(group.id)} aria-current={index === breadcrumbs.length - 1 ? "page" : undefined}>{group.title}</button></span>)}
+          </nav>
+          <header className="thoughts-folder-header">
+            <div className="thoughts-folder-title">
+              <span>{fallbackIcon(currentGroup)}</span>
+              <div><h1>{currentGroup.title}</h1><p>{visibleGroups.length} подгрупп · {currentGroup.notes.length} записей</p></div>
+            </div>
+            <div className="thoughts-menu-wrap">
+              <button className="thoughts-menu-button" type="button" onClick={() => setIsGroupMenuOpen((value) => !value)} aria-label="Действия с группой">•••</button>
+              {isGroupMenuOpen ? (
+                <div className="thoughts-menu">
+                  <button type="button" onClick={() => { setRenamedTitle(currentGroup.title); setGroupDialog("rename"); setIsGroupMenuOpen(false); }}>Переименовать</button>
+                  <button type="button" onClick={() => { setGroupDialog("move"); setIsGroupMenuOpen(false); }}>Переместить</button>
+                  <button className="danger" type="button" onClick={() => { setGroupDialog("delete"); setIsGroupMenuOpen(false); }}>Удалить</button>
                 </div>
               ) : null}
-
-              {!collapsedGroupIds.includes(group.id) && group.notes.length ? (
-                <ul className="backlog-notes">
-                  {group.notes.map((note) => (
-                    <li key={note.id}>
-                      <span>{note.text}</span>
-                      {note.attachments?.[0] ? <button className="attachment-view-button" type="button" onClick={() => void viewAttachment(note.attachments![0])}>Посмотреть</button> : null}
-                      <button className="todo-action-button danger" type="button" onClick={() => onDeleteNote(group.id, note.id)} aria-label="Удалить заметку" title="Удалить">×</button>
-                    </li>
-                  ))}
-                </ul>
-              ) : !collapsedGroupIds.includes(group.id) ? <p className="backlog-empty">Пока пусто. Добавь первую заметку.</p> : null}
-            </section>
-          ))}
-        </div>
-      ) : (
-        <section className="backlog-empty-state">
-          <span>+</span>
-          <h2>Освободи голову</h2>
-          <p>Создай группу, чтобы сохранять идеи без обязательства делать их прямо сейчас.</p>
-          <button className="button" type="button" onClick={() => setIsAddingGroup(true)}>Создать группу</button>
-        </section>
-      )}
-      {imagePreviewUrl ? <div className="image-preview-backdrop" role="presentation" onMouseDown={() => setImagePreviewUrl(null)}><div className="image-preview-dialog" role="dialog" aria-modal="true" aria-label="Просмотр изображения" onMouseDown={(event) => event.stopPropagation()}><button className="image-preview-close" type="button" onClick={() => setImagePreviewUrl(null)} aria-label="Закрыть">×</button><img src={imagePreviewUrl} alt="Прикреплённое изображение" /></div></div> : null}
-      {groupPendingDelete ? (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setGroupPendingDelete(null)}>
-          <section className="modal-dialog backlog-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-backlog-group-title" onMouseDown={(event) => event.stopPropagation()}>
-            <span className="section-kicker">Удаление группы</span>
-            <h2 id="delete-backlog-group-title">Удалить «{groupPendingDelete.title}»?</h2>
-            <p>Все заметки в этой группе будут удалены без возможности восстановления.</p>
-            <div className="toolbar toolbar-actions">
-              <button className="button secondary" type="button" onClick={() => setGroupPendingDelete(null)}>Нет</button>
-              <button className="button danger-button" type="button" onClick={() => { deleteGroup(groupPendingDelete.id); setGroupPendingDelete(null); }}>Да, удалить</button>
             </div>
-          </section>
-        </div>
+          </header>
+        </>
       ) : null}
+
+      <div className="thoughts-toolbar">
+        <button className="button secondary" type="button" onClick={() => setIsAddingGroup(true)}>+ {currentGroup ? "Подгруппа" : "Новая группа"}</button>
+        {currentGroup ? <button className="button" type="button" onClick={() => setIsAddingNote(true)}>+ Запись</button> : null}
+      </div>
+
+      {isAddingGroup ? (
+        <section className="thoughts-composer">
+          <input autoFocus className="input" placeholder="Название группы" value={groupTitle} onChange={(event) => setGroupTitle(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitGroup()} />
+          <div className="thoughts-icon-picker" aria-label="Иконка группы">{GROUP_ICONS.map((icon) => <button className={groupIcon === icon ? "is-selected" : ""} type="button" key={icon} onClick={() => setGroupIcon(icon)}>{icon}</button>)}</div>
+          <div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={() => setIsAddingGroup(false)}>Отмена</button><button className="button" type="button" onClick={submitGroup}>Создать</button></div>
+        </section>
+      ) : null}
+
+      {visibleGroups.length ? (
+        <div className="thoughts-grid">
+          {visibleGroups.map((group) => {
+            const childCount = groups.filter((item) => item.parentId === group.id).length;
+            return (
+              <button className={`thoughts-tile ${dragOverGroupId === group.id ? "is-drag-over" : ""}`} type="button" key={group.id} data-thought-group-id={group.id} onClick={() => openGroup(group.id)} onDragOver={(event) => { if (draggedGroupId === group.id) return; event.preventDefault(); setDragOverGroupId(group.id); }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const sourceId = event.dataTransfer.getData("text/plain") || draggedGroupId; if (sourceId && sourceId !== group.id) onReorderGroups(sourceId, group.id); clearDragState(); }}>
+                <span className="thoughts-tile-icon">{fallbackIcon(group)}</span>
+                <span className="thoughts-tile-copy"><strong>{group.title}</strong><small>{childCount ? `${childCount} подгрупп · ` : ""}{group.notes.length} записей</small></span>
+                <span className="thoughts-tile-arrow" aria-hidden="true">›</span>
+                <span className="thoughts-tile-drag" draggable onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", group.id); setDraggedGroupId(group.id); }} onDragEnd={clearDragState} onPointerDown={(event) => startTouchDrag(event, group.id)} onPointerMove={moveTouchDrag} onPointerUp={endTouchDrag} onPointerCancel={clearDragState} aria-label={`Изменить порядок группы «${group.title}»`}>⠿</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : !currentGroup || !currentGroup.notes.length ? <div className="thoughts-empty"><span>✦</span><h2>{currentGroup ? "Здесь пока пусто" : "Место для мыслей"}</h2><p>{currentGroup ? "Добавь подгруппу или первую запись." : "Создай группу для идей, планов и заметок без даты."}</p></div> : null}
+
+      {currentGroup && isAddingNote ? (
+        <section className="thoughts-composer">
+          <textarea autoFocus className="textarea" placeholder="Запиши мысль" value={noteText} onChange={(event) => setNoteText(event.target.value)} />
+          <label className="attachment-picker"><span>Файл или фото</span><input type="file" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setNoteFiles(event.target.files?.[0] ? [event.target.files[0]] : [])} />{noteFiles[0] ? <small>{noteFiles[0].name}</small> : null}</label>
+          <div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={() => setIsAddingNote(false)}>Отмена</button><button className="button" type="button" onClick={submitNote}>Добавить</button></div>
+        </section>
+      ) : null}
+
+      {currentGroup?.notes.length ? (
+        <section className="thoughts-notes-section">
+          <h2>Записи</h2>
+          <ul className="thoughts-notes">
+            {currentGroup.notes.map((note) => (
+              <li key={note.id}>
+                {editingNoteId === note.id ? (
+                  <div className="thoughts-note-edit"><textarea autoFocus className="textarea" value={editingNoteText} onChange={(event) => setEditingNoteText(event.target.value)} /><div><button className="mini-button" type="button" onClick={() => setEditingNoteId(null)}>Отмена</button><button className="mini-button" type="button" onClick={() => submitNoteEdit(note.id)}>Сохранить</button></div></div>
+                ) : (
+                  <><span className="thoughts-note-text">{note.text}</span><div className="thoughts-note-actions">{note.attachments?.[0] ? <button className="attachment-view-button" type="button" onClick={() => void viewAttachment(note.attachments![0])}>Посмотреть</button> : null}<button className="todo-action-button" type="button" onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.text); }} aria-label="Изменить запись">✎</button><button className="todo-action-button danger" type="button" onClick={() => onDeleteNote(currentGroup.id, note.id)} aria-label="Удалить запись">×</button></div></>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {groupDialog === "rename" && currentGroup ? <ThoughtsDialog title="Переименовать группу" onClose={() => setGroupDialog(null)}><input autoFocus className="input" value={renamedTitle} onChange={(event) => setRenamedTitle(event.target.value)} /><div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={() => setGroupDialog(null)}>Отмена</button><button className="button" type="button" onClick={() => { if (renamedTitle.trim()) onUpdateGroup(currentGroup.id, { title: renamedTitle.trim() }); setGroupDialog(null); }}>Сохранить</button></div></ThoughtsDialog> : null}
+
+      {groupDialog === "move" && currentGroup ? <ThoughtsDialog className="thoughts-move-dialog" title="Переместить группу" showBack onClose={() => setGroupDialog(null)}><p>Выбери новое расположение для «{currentGroup.title}».</p><div className="thoughts-move-list"><button className={currentGroup.parentId === null ? "is-current" : ""} type="button" disabled={currentGroup.parentId === null} onClick={() => { onUpdateGroup(currentGroup.id, { parentId: null }); setCurrentGroupId(null); setGroupDialog(null); }}>✦ Общие мысли</button>{moveTargets.map((target) => <button className={currentGroup.parentId === target.id ? "is-current" : ""} type="button" key={target.id} disabled={currentGroup.parentId === target.id} onClick={() => { onUpdateGroup(currentGroup.id, { parentId: target.id }); setCurrentGroupId(target.id); setGroupDialog(null); }}>{fallbackIcon(target)} {target.title}</button>)}</div></ThoughtsDialog> : null}
+
+      {groupDialog === "delete" && currentGroup ? <ThoughtsDialog className="thoughts-delete-dialog" title={`Удалить «${currentGroup.title}»?`} onClose={() => setGroupDialog(null)}><p>Группа, все вложенные подгруппы и записи будут удалены без возможности восстановления.</p><div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={() => setGroupDialog(null)}>Нет</button><button className="button danger-button" type="button" onClick={() => { const parentId = currentGroup.parentId; onDeleteGroup(currentGroup.id); setCurrentGroupId(parentId); setGroupDialog(null); }}>Да, удалить всё</button></div></ThoughtsDialog> : null}
+
+      {imagePreviewUrl ? <div className="image-preview-backdrop" role="presentation" onMouseDown={() => setImagePreviewUrl(null)}><div className="image-preview-dialog" role="dialog" aria-modal="true" aria-label="Просмотр изображения" onMouseDown={(event) => event.stopPropagation()}><button className="image-preview-close" type="button" onClick={() => setImagePreviewUrl(null)} aria-label="Закрыть">×</button><img src={imagePreviewUrl} alt="Прикреплённое изображение" /></div></div> : null}
     </section>
   );
 }
 
+function ThoughtsHeader() {
+  return <header className="backlog-header"><div><div className="section-kicker">Пространство без срока</div><h1>Мысли</h1></div></header>;
+}
+
 function BacklogModeSwitch({ mode, onChange }: { mode: "personal" | "shared"; onChange: (mode: "personal" | "shared") => void }) {
-  return <div className="backlog-mode-switch" role="tablist" aria-label="Режим бэклога"><button className={mode === "personal" ? "is-active" : ""} type="button" role="tab" aria-selected={mode === "personal"} onClick={() => onChange("personal")}>Личный</button><button className={mode === "shared" ? "is-active" : ""} type="button" role="tab" aria-selected={mode === "shared"} onClick={() => onChange("shared")}>Общие</button></div>;
+  return <div className="backlog-mode-switch" role="tablist" aria-label="Раздел мыслей"><button className={mode === "personal" ? "is-active" : ""} type="button" role="tab" aria-selected={mode === "personal"} onClick={() => onChange("personal")}>Личные</button><button className={mode === "shared" ? "is-active" : ""} type="button" role="tab" aria-selected={mode === "shared"} onClick={() => onChange("shared")}>Общие</button></div>;
+}
+
+function ThoughtsDialog({ title, children, className = "", showBack = false, onClose }: { title: string; children: ReactNode; className?: string; showBack?: boolean; onClose: () => void }) {
+  const backdropClassName = className ? `${className}-backdrop` : "";
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className={`modal-backdrop ${backdropClassName}`} role="presentation" onMouseDown={onClose}><section className={`modal-dialog thoughts-dialog ${className}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}><div className="thoughts-dialog-header">{showBack ? <button className="thoughts-dialog-back" type="button" onClick={onClose}>← Назад</button> : null}<h2>{title}</h2></div>{children}</section></div>,
+    document.body,
+  );
 }

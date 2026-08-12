@@ -346,6 +346,6 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
 
 function ConfirmationDialog({ confirmation, onCancel, onConfirm }: { confirmation: Confirmation; onCancel: () => void; onConfirm: () => void }) {
   const title = confirmation.kind === "delete-list" ? `Удалить «${confirmation.title}»?` : confirmation.kind === "leave-list" ? `Выйти из «${confirmation.title}»?` : `Исключить ${confirmation.email}?`;
-  const text = confirmation.kind === "delete-list" ? "Список, участники и все пункты будут удалены без возможности восстановления." : confirmation.kind === "leave-list" ? "Список исчезнет из вашего бэклога, пока владелец не пригласит вас снова." : "Пользователь сразу потеряет доступ к списку.";
+  const text = confirmation.kind === "delete-list" ? "Список, участники и все пункты будут удалены без возможности восстановления." : confirmation.kind === "leave-list" ? "Список исчезнет из раздела «Мысли», пока владелец не пригласит вас снова." : "Пользователь сразу потеряет доступ к списку.";
   return <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}><section className="modal-dialog backlog-delete-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><span className="section-kicker">Подтверждение</span><h2>{title}</h2><p>{text}</p><div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={onCancel}>Отмена</button><button className="button danger-button" type="button" onClick={onConfirm}>Подтвердить</button></div></section></div>;
 }
