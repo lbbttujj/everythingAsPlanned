@@ -15,6 +15,8 @@ type ActionFormProps = {
 
 export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLabel, isEditing, files, onFilesChange }: ActionFormProps) {
   const recurrence = draft.recurrence;
+  const selectedFile = files[0];
+  const formattedDate = draft.scheduledFor ? draft.scheduledFor.split("-").reverse().join(".") : "";
   const oneYearFromToday = () => {
     const date = new Date();
     date.setFullYear(date.getFullYear() + 1);
@@ -27,39 +29,49 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
   };
 
   return (
-    <section className="panel panel-compact quick-task-form">
-      <div className="panel-head">
-        <div>
-          <h2>{isEditing ? "Изменить дело" : "Новое дело"}</h2>
-          <p>Коротко запиши то, что хочешь сделать сегодня.</p>
-        </div>
+    <section className="action-sheet-content">
+      <div className="action-sheet-heading">
+        <span className="action-sheet-handle" aria-hidden="true" />
+        <h2>{isEditing ? "Изменить дело" : "Новое дело"}</h2>
       </div>
 
-      <div className="form-grid">
+      <div className="action-sheet-form">
         <textarea
           autoFocus
-          className="textarea quick-task-textarea"
-          placeholder="Например, записаться к врачу"
+          className="textarea action-sheet-title"
+          placeholder="Что нужно сделать?"
           value={draft.title}
           onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
         />
 
-        <label className="important-toggle">
-          <input type="checkbox" checked={draft.isImportant} onChange={(event) => onDraftChange({ ...draft, isImportant: event.target.checked })} />
-          <span>Важное дело</span>
-        </label>
+        <div className="action-sheet-settings">
+          <label className="action-setting-row">
+            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">▣</span>Дата</span>
+            <span className="action-date-control"><span>{formattedDate || "Сегодня"}</span><input aria-label="Дата дела" type="date" value={draft.scheduledFor} onChange={(event) => onDraftChange({ ...draft, scheduledFor: event.target.value })} /></span>
+          </label>
 
-        <label className="important-toggle">
-          <input type="checkbox" checked={Boolean(recurrence)} onChange={(event) => onDraftChange({ ...draft, recurrence: event.target.checked ? { frequency: "weekly", days: [1], endDate: oneYearFromToday(), endMode: "always" } : null })} />
-          <span>Регулярное дело</span>
-        </label>
+          <label className="action-setting-row action-toggle-row">
+            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">☆</span>Важное</span>
+            <span className={`ios-toggle ${draft.isImportant ? "is-on" : ""}`}><input type="checkbox" checked={draft.isImportant} onChange={(event) => onDraftChange({ ...draft, isImportant: event.target.checked })} /><span aria-hidden="true" /></span>
+          </label>
+
+          <label className="action-setting-row">
+            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">↻</span>Регулярность</span>
+            <select className="action-inline-select" value={recurrence?.frequency ?? "none"} onChange={(event) => onDraftChange({ ...draft, recurrence: event.target.value === "none" ? null : { frequency: event.target.value as "weekly" | "monthly", days: [1], endDate: oneYearFromToday(), endMode: "always" } })}>
+              <option value="none">Нет</option>
+              <option value="weekly">Каждую неделю</option>
+              <option value="monthly">Каждый месяц</option>
+            </select>
+          </label>
+
+          <label className="action-setting-row action-file-row">
+            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">⌕</span>{selectedFile ? selectedFile.name : "Файл или фото"}</span>
+            <span className="action-file-button">{selectedFile ? "Заменить" : "Добавить"}<input aria-label="Добавить файл или фото" type="file" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => onFilesChange(Array.from(event.target.files ?? []).slice(0, 1))} /></span>
+          </label>
+        </div>
 
         {recurrence ? (
-          <div className="recurrence-picker">
-            <select className="select" value={recurrence.frequency} onChange={(event) => onDraftChange({ ...draft, recurrence: { ...recurrence, frequency: event.target.value as "weekly" | "monthly", days: [1] } })}>
-              <option value="weekly">Еженедельное</option>
-              <option value="monthly">Ежемесячное</option>
-            </select>
+          <div className="recurrence-picker action-recurrence-details">
             <div className="recurrence-days">
               {(recurrence.frequency === "weekly" ? ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] : Array.from({ length: 31 }, (_, index) => String(index + 1))).map((label, index) => {
                 const day = index + 1;
@@ -71,13 +83,7 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
           </div>
         ) : null}
 
-        <label className="attachment-picker">
-          <span>Прикрепить фото или файл</span>
-          <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => onFilesChange(Array.from(event.target.files ?? []))} />
-          {files.length ? <small>Выбрано файлов: {files.length}</small> : null}
-        </label>
-
-        <div className="toolbar toolbar-actions">
+        <div className="action-sheet-actions">
           <button className="button secondary" type="button" onClick={onCancel}>
             Отмена
           </button>

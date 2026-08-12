@@ -22,27 +22,15 @@ export function TodayList({ actions, onAdd, onDelete, onEdit, onToggleComplete }
     <section className="today-view">
       <header className="today-header">
         <div>
-          <div className="section-kicker">Фокус дня</div>
           <h1>Сегодня</h1>
           <p suppressHydrationWarning>{todayLabel()}</p>
         </div>
-        <button className="today-add-button" type="button" onClick={onAdd}>
-          <span>+</span>
-          Добавить дело
-        </button>
       </header>
 
-      <section className="today-summary" aria-label="Сводка по делам">
-        <div>
-          <span>В фокусе</span>
-          <strong>{activeActions.length}</strong>
-        </div>
-        <div>
-          <span>Готово</span>
-          <strong>{completedActions.length}</strong>
-        </div>
-        <p>{activeActions.length ? "Выбери одно дело и начни с него." : "На сегодня всё сделано. Можно выдохнуть."}</p>
-      </section>
+      <button className="today-quick-add" type="button" onClick={onAdd}>
+        <span className="today-quick-add-icon" aria-hidden="true">+</span>
+        <span>Добавь одно небольшое дело…</span>
+      </button>
 
       <section className="today-list-panel">
         <div className="today-list-heading">

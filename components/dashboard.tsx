@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionForm } from "@/components/action-form";
 import { ActionTable } from "@/components/action-table";
@@ -276,6 +276,9 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalClosing, setIsModalClosing] = useState(false);
+  const [isModalPresented, setIsModalPresented] = useState(false);
+  const modalCloseTimer = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("today");
@@ -334,6 +337,18 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const todayKey = currentDate;
   const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc").sort((left, right) => Number(Boolean(right.isImportant)) - Number(Boolean(left.isImportant)) || left.order - right.order), [actions]);
   const todayActions = useMemo(() => actActions.filter((action) => (action.scheduledFor || todayKey) === todayKey), [actActions, todayKey]);
+
+  const closeActionModal = () => {
+    if (isModalClosing) return;
+    setIsModalClosing(true);
+    setIsModalPresented(false);
+    if (modalCloseTimer.current) window.clearTimeout(modalCloseTimer.current);
+    modalCloseTimer.current = window.setTimeout(() => {
+      setIsModalOpen(false);
+      setIsModalClosing(false);
+      modalCloseTimer.current = null;
+    }, 260);
+  };
 
   const handleSort = (nextKey: SortKey) => {
     if (nextKey === "manual") {
@@ -398,13 +413,14 @@ export function Dashboard({ userId, email }: DashboardProps) {
       setEditingId(null);
       setEditingRecurringTaskId(null);
       setEditingRecurringSeriesId(null);
-      setIsModalOpen(false);
+      closeActionModal();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось сохранить запись.");
     }
   };
 
   const handleEdit = (action: ActionItem) => {
+    setIsModalPresented(false);
     setEditingId(action.id);
     setEditingRecurringTaskId(null);
     setEditingRecurringSeriesId(null);
@@ -513,10 +529,13 @@ export function Dashboard({ userId, email }: DashboardProps) {
     setEditingRecurringTaskId(null);
     setEditingRecurringSeriesId(null);
     setDraft(cloneDraft(defaultGoalDraft));
-    setIsModalOpen(false);
+    closeActionModal();
   };
 
   const handleAddClick = (kind: "goal" | "act", scheduledFor = getLocalDateKey()) => {
+    if (modalCloseTimer.current) window.clearTimeout(modalCloseTimer.current);
+    setIsModalClosing(false);
+    setIsModalPresented(false);
     setEditingId(null);
     setEditingRecurringTaskId(null);
     setEditingRecurringSeriesId(null);
@@ -530,6 +549,15 @@ export function Dashboard({ userId, email }: DashboardProps) {
     }
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const presentationTimer = window.setTimeout(() => setIsModalPresented(true), 48);
+
+    return () => {
+      window.clearTimeout(presentationTimer);
+    };
+  }, [isModalOpen]);
 
   const handleSignOut = async () => {
     await createClient().auth.signOut();
@@ -579,6 +607,9 @@ export function Dashboard({ userId, email }: DashboardProps) {
             <span className="bottom-nav-icon" aria-hidden="true">▤</span>
             <span>Неделя</span>
           </button>
+          <button className="bottom-nav-add" type="button" onClick={() => handleAddClick("act", todayKey)} aria-label="Добавить дело">
+            <span aria-hidden="true">+</span>
+          </button>
           <button className={`bottom-nav-item ${activeSection === "backlog" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("backlog")} aria-current={activeSection === "backlog" ? "page" : undefined}>
             <span className="bottom-nav-icon" aria-hidden="true">⌁</span>
             <span>Бэклог</span>
@@ -590,18 +621,20 @@ export function Dashboard({ userId, email }: DashboardProps) {
         </nav>
 
         {isModalOpen ? (
-          <div className="modal-backdrop" role="presentation" onMouseDown={handleCancel}>
-            <div className="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="item-modal-title" onMouseDown={(event) => event.stopPropagation()}>
-              <div className="modal-topline">
-                <span className="section-kicker">{draft.kind === "goal" ? "Долгосрочное направление" : "Ближайшее действие"}</span>
-                <button className="modal-close" type="button" onClick={handleCancel} aria-label="Закрыть окно">×</button>
+          <div className={`modal-backdrop ${draft.kind === "act" ? "is-action-modal" : ""} ${isModalPresented ? "is-presented" : ""} ${isModalClosing ? "is-closing" : ""}`} role="presentation" onMouseDown={handleCancel}>
+            <div className={draft.kind === "act" ? "action-modal-viewport" : undefined}>
+              <div className={`modal-dialog ${draft.kind === "act" ? "action-modal-sheet" : ""} ${isModalClosing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="item-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+                <div className="modal-topline">
+                  <span className="section-kicker">{draft.kind === "goal" ? "Долгосрочное направление" : "Ближайшее действие"}</span>
+                  <button className="modal-close" type="button" onClick={handleCancel} aria-label="Закрыть окно">×</button>
+                </div>
+                <div id="item-modal-title" className="sr-only">{editingId ? "Редактировать запись" : "Добавить запись"}</div>
+                {draft.kind === "goal" ? (
+                  <GoalForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
+                ) : (
+                  <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
+                )}
               </div>
-              <div id="item-modal-title" className="sr-only">{editingId ? "Редактировать запись" : "Добавить запись"}</div>
-              {draft.kind === "goal" ? (
-                <GoalForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
-              ) : (
-                <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
-              )}
             </div>
           </div>
         ) : null}
