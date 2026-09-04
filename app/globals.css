@@ -2254,16 +2254,18 @@ button {
 }
 
 .week-day-toggle i {
+  width: 8px;
+  height: 8px;
   margin-left: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
   color: var(--muted);
-  font-size: 16px;
-  font-style: normal;
-  line-height: 1;
+  transform: rotate(45deg);
   transition: transform 180ms ease;
 }
 
 .week-day.is-collapsed .week-day-toggle i {
-  transform: rotate(-90deg);
+  transform: rotate(-45deg);
 }
 
 .week-add-button {
@@ -3001,11 +3003,9 @@ button {
 }
 
 .bottom-nav-item {
-  display: grid;
-  grid-template-columns: auto auto;
-  place-content: center;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   min-height: 48px;
   border: 0;
   border-radius: 15px;
@@ -3936,8 +3936,7 @@ select {
   }
 
   .bottom-nav-item {
-    grid-template-columns: 25px minmax(0, 1fr);
-    justify-content: start;
+    justify-content: flex-start;
     padding: 0 13px;
     text-align: left;
   }
@@ -4224,12 +4223,33 @@ select {
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 16px;
-  background: var(--bg);
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .daily-review summary {
+  display: flex;
+  align-items: center;
   cursor: pointer;
-  font-weight: 650;
+  font-weight: 750;
+  list-style: none;
+}
+
+.daily-review summary::-webkit-details-marker {
+  display: none;
+}
+
+.daily-review summary::before {
+  margin-right: 8px;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  content: "›";
+  transform: rotate(0deg);
+  transition: transform 180ms ease;
+}
+
+.daily-review[open] summary::before {
+  transform: rotate(90deg);
 }
 
 .daily-review summary span {
@@ -4239,15 +4259,19 @@ select {
 
 .daily-review-list {
   display: grid;
-  gap: 16px;
+  gap: 10px;
+  margin: 14px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .daily-review-list li {
   min-width: 0;
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(43, 48, 82, 0.04);
   overflow-wrap: anywhere;
 }
 
@@ -4257,22 +4281,27 @@ select {
 }
 
 .daily-review-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
   gap: 8px;
   margin-top: 12px;
 }
 
 .daily-review-actions label {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   font-size: 13px;
 }
 
+.daily-review-actions .mini-button {
+  min-height: 40px;
+}
+
 .daily-review-actions input {
+  width: 100%;
   max-width: 100%;
   min-height: 36px;
   border: 1px solid var(--line);
@@ -4281,6 +4310,12 @@ select {
   color: var(--text);
   background: var(--bg);
   font: inherit;
+}
+
+@media (min-width: 560px) {
+  .daily-review-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .thoughts-icon-picker {

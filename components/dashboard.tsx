@@ -613,7 +613,6 @@ export function Dashboard({ userId, email }: DashboardProps) {
     setEditingId(null);
     setEditingRecurringTaskId(null);
     setEditingRecurringSeriesId(null);
-    setDraft(cloneDraft(defaultGoalDraft));
     closeActionModal();
   };
 
@@ -685,22 +684,18 @@ export function Dashboard({ userId, email }: DashboardProps) {
 
         <nav className="bottom-nav" aria-label="Основные разделы">
           <button className={`bottom-nav-item ${activeSection === "today" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("today")} aria-current={activeSection === "today" ? "page" : undefined}>
-            <span className="bottom-nav-icon" aria-hidden="true">✓</span>
             <span>Сегодня</span>
           </button>
           <button className={`bottom-nav-item ${activeSection === "week" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("week")} aria-current={activeSection === "week" ? "page" : undefined}>
-            <span className="bottom-nav-icon" aria-hidden="true">▤</span>
             <span>Неделя</span>
           </button>
           <button className="bottom-nav-add" type="button" onClick={() => handleAddClick("act", todayKey)} aria-label="Добавить дело">
             <span aria-hidden="true">+</span>
           </button>
           <button className={`bottom-nav-item ${activeSection === "backlog" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("backlog")} aria-current={activeSection === "backlog" ? "page" : undefined}>
-            <span className="bottom-nav-icon" aria-hidden="true">⌁</span>
             <span>Мысли</span>
           </button>
           <button className={`bottom-nav-item ${activeSection === "goals" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("goals")} aria-current={activeSection === "goals" ? "page" : undefined}>
-            <span className="bottom-nav-icon" aria-hidden="true">◎</span>
             <span>Цели</span>
           </button>
         </nav>

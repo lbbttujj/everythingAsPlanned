@@ -197,7 +197,7 @@ export function ActionTable({ actions, sections = "all", onEdit, onDelete, onReo
         <div>
           <div className="section-kicker">Текущий выбор</div>
           <h2>Что сейчас важно</h2>
-          <p>{sortKey === "manual" ? "Перетащи строку, чтобы собрать собственную очередь внутри каждого раздела." : "Цели и поступки разделены: нажми на заголовок колонки, чтобы изменить сортировку."}</p>
+          <p>{sortKey === "manual" ? "Перетащи строку, чтобы собрать собственную очередь." : "Нажми на заголовок колонки, чтобы изменить сортировку."}</p>
         </div>
         <div className="table-head-actions">
           <span className="score-pill">{actions.length} записей</span>

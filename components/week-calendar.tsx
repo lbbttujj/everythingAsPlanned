@@ -135,7 +135,7 @@ export function WeekCalendar({ actions, onSendToReview, onAddForDate, onDelete, 
                   <span>{weekdayFormatter.format(day.date)}</span>
                   <h2>{dateFormatter.format(day.date)}</h2>
                   <small>{dayActions.length ? `${dayActions.length} ${dayActions.length === 1 ? "дело" : "дел"}` : "Свободно"}</small>
-                  <i aria-hidden="true">⌄</i>
+                  <i aria-hidden="true" />
                 </button>
                 <button className="week-add-button" type="button" onClick={() => onAddForDate(day.key)} aria-label={`Добавить дело на ${dateFormatter.format(day.date)}`}>+</button>
               </header>
