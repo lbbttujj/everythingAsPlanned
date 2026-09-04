@@ -14,6 +14,7 @@ type PlannerItemRow = {
   status: ActionItem["status"];
   is_important: boolean;
   rollover_count: number;
+  needs_review: boolean;
   recurrence: ActionItem["recurrence"];
   recurring_task_id: string | null;
   is_completed: boolean;
@@ -68,6 +69,7 @@ function toAction(row: PlannerItemRow, attachments: AttachmentRow[]): ActionItem
     status: row.status,
     isImportant: row.is_important,
     rolloverCount: row.rollover_count,
+    needsReview: row.needs_review,
     recurrence: row.recurrence,
     recurringTaskId: row.recurring_task_id,
     isCompleted: row.is_completed,
@@ -94,6 +96,7 @@ function toActionRow(item: ActionItem, userId: string) {
     status: item.status,
     is_important: item.isImportant ?? false,
     rollover_count: item.rolloverCount ?? 0,
+    needs_review: item.needsReview ?? false,
     recurrence: item.recurrence ?? null,
     recurring_task_id: item.recurringTaskId ?? null,
     is_completed: item.isCompleted ?? false,
@@ -102,6 +105,11 @@ function toActionRow(item: ActionItem, userId: string) {
     created_at: item.createdAt,
     updated_at: item.updatedAt
   };
+}
+
+export async function moveBacklogNoteToToday(noteId: string, date: string) {
+  const { error } = await createClient().rpc("move_backlog_note_to_today", { note_id: noteId, target_date: date });
+  throwIfError(error);
 }
 
 function toBacklogGroup(row: BacklogGroupRow, notes: BacklogNoteRow[], attachments: AttachmentRow[]): BacklogGroup {

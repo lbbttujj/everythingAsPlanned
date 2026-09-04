@@ -53,6 +53,7 @@ export type ActionItem = {
   status: ActionStatus;
   isImportant?: boolean;
   rolloverCount?: number;
+  needsReview?: boolean;
   recurrence?: Recurrence | null;
   recurringTaskId?: string | null;
   isCompleted?: boolean;

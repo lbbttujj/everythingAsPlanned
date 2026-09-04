@@ -8,9 +8,18 @@ import { createClient } from "@/lib/supabase/client";
 import type { Attachment, BacklogGroup } from "@/lib/types";
 
 const GROUP_ICONS = ["✦", "♥", "💡", "📝", "📚", "🏠", "✈️", "🎯", "🧩", "💼", "🌱"];
+const AVAILABLE_GROUP_ICONS = [...GROUP_ICONS,
+  "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💕", "⭐", "✨", "🔥",
+  "😊", "😎", "🥰", "🤔", "🥳", "😴", "👨‍👩‍👧", "🤝", "🎁", "🎉",
+  "💻", "📱", "⚙️", "🔧", "🔬", "🎓", "📖", "✏️", "📌", "📅", "✅", "📂",
+  "💰", "💳", "🛒", "👕", "🍎", "☕", "🍕", "🍳", "🏋️", "🏃", "🚲", "🧘",
+  "💊", "🩺", "🎨", "🎵", "🎸", "🎬", "📷", "🎮", "🌍", "🏖️", "⛰️", "🚗",
+  "🚀", "🐱", "🐶", "🌸", "🌳", "☀️", "🌙", "🌈",
+];
 
 type BacklogBoardProps = {
   groups: BacklogGroup[];
+  onMoveNoteToToday: (noteId: string) => Promise<void>;
   onAddNote: (groupId: string, text: string, files: File[]) => void;
   onCreateGroup: (title: string, parentId: string | null, icon: string) => void;
   onDeleteGroup: (groupId: string) => void;
@@ -58,7 +67,8 @@ function buildBreadcrumbs(groups: BacklogGroup[], currentGroupId: string | null)
   return result;
 }
 
-export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onUpdateGroup, onUpdateNote, onReorderGroups, userId, email }: BacklogBoardProps) {
+export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onUpdateGroup, onUpdateNote, onReorderGroups, userId, email }: BacklogBoardProps) {
+  const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
   const [mode, setMode] = useState<"personal" | "shared">("personal");
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
   const [isAddingGroup, setIsAddingGroup] = useState(false);
@@ -70,7 +80,8 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
   const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false);
-  const [groupDialog, setGroupDialog] = useState<"rename" | "move" | "delete" | null>(null);
+  const [groupDialog, setGroupDialog] = useState<"rename" | "icon" | "move" | "delete" | null>(null);
+  const [editedIcon, setEditedIcon] = useState(GROUP_ICONS[0]);
   const [renamedTitle, setRenamedTitle] = useState("");
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
@@ -191,6 +202,7 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
               {isGroupMenuOpen ? (
                 <div className="thoughts-menu">
                   <button type="button" onClick={() => { setRenamedTitle(currentGroup.title); setGroupDialog("rename"); setIsGroupMenuOpen(false); }}>Переименовать</button>
+                  <button type="button" onClick={() => { setEditedIcon(fallbackIcon(currentGroup)); setGroupDialog("icon"); setIsGroupMenuOpen(false); }}>Изменить эмодзи</button>
                   <button type="button" onClick={() => { setGroupDialog("move"); setIsGroupMenuOpen(false); }}>Переместить</button>
                   <button className="danger" type="button" onClick={() => { setGroupDialog("delete"); setIsGroupMenuOpen(false); }}>Удалить</button>
                 </div>
@@ -208,7 +220,7 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
       {isAddingGroup ? (
         <section className="thoughts-composer">
           <input autoFocus className="input" placeholder="Название группы" value={groupTitle} onChange={(event) => setGroupTitle(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitGroup()} />
-          <div className="thoughts-icon-picker" aria-label="Иконка группы">{GROUP_ICONS.map((icon) => <button className={groupIcon === icon ? "is-selected" : ""} type="button" key={icon} onClick={() => setGroupIcon(icon)}>{icon}</button>)}</div>
+          <GroupIconPicker value={groupIcon} onChange={setGroupIcon} />
           <div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={() => setIsAddingGroup(false)}>Отмена</button><button className="button" type="button" onClick={submitGroup}>Создать</button></div>
         </section>
       ) : null}
@@ -243,6 +255,10 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
           <ul className="thoughts-notes">
             {currentGroup.notes.map((note) => (
               <li key={note.id}>
+                <button className="mini-button thoughts-note-move" type="button" disabled={movingNoteId !== null || editingNoteId === note.id} onClick={async () => {
+                  setMovingNoteId(note.id);
+                  try { await onMoveNoteToToday(note.id); } finally { setMovingNoteId(null); }
+                }}>{movingNoteId === note.id ? "Переношу…" : "На сегодня"}</button>
                 {editingNoteId === note.id ? (
                   <div className="thoughts-note-edit"><textarea autoFocus className="textarea" value={editingNoteText} onChange={(event) => setEditingNoteText(event.target.value)} /><div><button className="mini-button" type="button" onClick={() => setEditingNoteId(null)}>Отмена</button><button className="mini-button" type="button" onClick={() => submitNoteEdit(note.id)}>Сохранить</button></div></div>
                 ) : (
@@ -254,6 +270,16 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
         </section>
       ) : null}
 
+      {groupDialog === "icon" && currentGroup ? (
+        <ThoughtsDialog title="Эмодзи группы" onClose={() => setGroupDialog(null)}>
+          <GroupIconPicker value={editedIcon} onChange={setEditedIcon} />
+          <div className="toolbar toolbar-actions">
+            <button className="button secondary" type="button" onClick={() => setGroupDialog(null)}>Отмена</button>
+            <button className="button" type="button" onClick={() => { onUpdateGroup(currentGroup.id, { icon: editedIcon }); setGroupDialog(null); }}>Сохранить</button>
+          </div>
+        </ThoughtsDialog>
+      ) : null}
+
       {groupDialog === "rename" && currentGroup ? <ThoughtsDialog title="Переименовать группу" onClose={() => setGroupDialog(null)}><input autoFocus className="input" value={renamedTitle} onChange={(event) => setRenamedTitle(event.target.value)} /><div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={() => setGroupDialog(null)}>Отмена</button><button className="button" type="button" onClick={() => { if (renamedTitle.trim()) onUpdateGroup(currentGroup.id, { title: renamedTitle.trim() }); setGroupDialog(null); }}>Сохранить</button></div></ThoughtsDialog> : null}
 
       {groupDialog === "move" && currentGroup ? <ThoughtsDialog className="thoughts-move-dialog" title="Переместить группу" showBack onClose={() => setGroupDialog(null)}><p>Выбери новое расположение для «{currentGroup.title}».</p><div className="thoughts-move-list"><button className={currentGroup.parentId === null ? "is-current" : ""} type="button" disabled={currentGroup.parentId === null} onClick={() => { onUpdateGroup(currentGroup.id, { parentId: null }); setCurrentGroupId(null); setGroupDialog(null); }}>✦ Общие мысли</button>{moveTargets.map((target) => <button className={currentGroup.parentId === target.id ? "is-current" : ""} type="button" key={target.id} disabled={currentGroup.parentId === target.id} onClick={() => { onUpdateGroup(currentGroup.id, { parentId: target.id }); setCurrentGroupId(target.id); setGroupDialog(null); }}>{fallbackIcon(target)} {target.title}</button>)}</div></ThoughtsDialog> : null}
@@ -262,6 +288,16 @@ export function BacklogBoard({ groups, onAddNote, onCreateGroup, onDeleteGroup, 
 
       {imagePreviewUrl ? <div className="image-preview-backdrop" role="presentation" onMouseDown={() => setImagePreviewUrl(null)}><div className="image-preview-dialog" role="dialog" aria-modal="true" aria-label="Просмотр изображения" onMouseDown={(event) => event.stopPropagation()}><button className="image-preview-close" type="button" onClick={() => setImagePreviewUrl(null)} aria-label="Закрыть">×</button><img src={imagePreviewUrl} alt="Прикреплённое изображение" /></div></div> : null}
     </section>
+  );
+}
+
+function GroupIconPicker({ value, onChange }: { value: string; onChange: (icon: string) => void }) {
+  return (
+    <div className="thoughts-icon-picker" role="group" aria-label="Эмодзи группы">
+      {AVAILABLE_GROUP_ICONS.map((icon) => (
+        <button className={value === icon ? "is-selected" : ""} type="button" key={icon} aria-label={`Эмодзи ${icon}`} aria-pressed={value === icon} onClick={() => onChange(icon)}>{icon}</button>
+      ))}
+    </div>
   );
 }
 

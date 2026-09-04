@@ -7,6 +7,7 @@ import type { ActionItem } from "@/lib/types";
 
 type WeekCalendarProps = {
   actions: ActionItem[];
+  onSendToReview: (id: string) => void;
   onAddForDate: (date: string) => void;
   onDelete: (id: string) => void;
   onEdit: (action: ActionItem) => void;
@@ -38,7 +39,7 @@ function getMonthDays(referenceDate: Date) {
   return Array.from({ length: 42 }, (_, index) => shiftDate(start, index));
 }
 
-export function WeekCalendar({ actions, onAddForDate, onDelete, onEdit, onToggleComplete, onManageRecurring }: WeekCalendarProps) {
+export function WeekCalendar({ actions, onSendToReview, onAddForDate, onDelete, onEdit, onToggleComplete, onManageRecurring }: WeekCalendarProps) {
   const today = getLocalDateKey();
   const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [isMonthOpen, setIsMonthOpen] = useState(false);
@@ -69,7 +70,7 @@ export function WeekCalendar({ actions, onAddForDate, onDelete, onEdit, onToggle
     setCollapsedDays((current) => current.includes(date) ? current.filter((item) => item !== date) : [...current, date]);
   };
 
-  const actionsForDate = (date: string) => actions.filter((action) => (action.scheduledFor || today) === date);
+  const actionsForDate = (date: string) => actions.filter((action) => action.scheduledFor === date);
 
   return (
     <section className="week-view">
@@ -149,6 +150,7 @@ export function WeekCalendar({ actions, onAddForDate, onDelete, onEdit, onToggle
                         {action.isImportant ? <span className="important-badge">Важно</span> : null}
                       </div>
                       <div className="todo-actions">
+                        {!action.isCompleted ? <button className="todo-action-button" type="button" onClick={() => onSendToReview(action.id)} aria-label={`В Разобрать: ${action.title}`} title="В Разобрать">↩</button> : null}
                         <button className="todo-action-button" type="button" onClick={() => onEdit(action)} aria-label={`Изменить «${action.title}»`} title="Изменить">✎</button>
                         <button className="todo-action-button danger" type="button" onClick={() => onDelete(action.id)} aria-label={`Удалить «${action.title}»`} title="Удалить">×</button>
                       </div>

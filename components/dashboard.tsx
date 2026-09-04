@@ -8,6 +8,7 @@ import { BacklogBoard } from "@/components/backlog-board";
 import { GoalForm } from "@/components/goal-form";
 import { TodayList } from "@/components/today-list";
 import { WeekCalendar } from "@/components/week-calendar";
+import { moveBacklogNoteToToday } from "@/lib/planner-repository";
 import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentComplete } from "@/lib/goal-assessment";
 import { deleteAction, deleteBacklogGroup, deleteBacklogNote, deleteRecurringTask, loadPlannerData, migrateLegacyLocalData, saveAction, saveBacklogGroup, saveBacklogNote, saveRecurringTask, uploadActionAttachments, uploadBacklogNoteAttachments } from "@/lib/planner-repository";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
@@ -148,10 +149,12 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
     score: calculateActScore(draft),
     status: draft.status,
     isImportant: draft.isImportant,
+    needsReview: existing?.needsReview && draft.scheduledFor === existing.scheduledFor,
+    rolloverCount: (existing?.rolloverCount ?? 0) + (existing?.scheduledFor && draft.scheduledFor && draft.scheduledFor > existing.scheduledFor ? 1 : 0),
     recurrence: draft.recurrence,
     recurringTaskId: existing?.recurringTaskId ?? null,
     isCompleted: existing?.isCompleted ?? false,
-    scheduledFor: draft.scheduledFor || existing?.scheduledFor || getLocalDateKey(),
+    scheduledFor: draft.scheduledFor || (existing ? existing.scheduledFor : getLocalDateKey()),
     order,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now
@@ -197,7 +200,7 @@ function draftFromAction(action: ActionItem): ActionDraft {
     status: action.status,
     isImportant: action.isImportant ?? false,
     recurrence: action.recurrence ?? null,
-    scheduledFor: action.scheduledFor ?? getLocalDateKey()
+    scheduledFor: action.scheduledFor ?? ""
   };
 }
 
@@ -334,26 +337,13 @@ export function Dashboard({ userId, email }: DashboardProps) {
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (isLoading) return;
-
-    const overdue = actions.filter((action) => action.kind === "act" && !action.isCompleted && action.scheduledFor && action.scheduledFor < currentDate);
-    if (!overdue.length) return;
-
-    const moved = overdue.map((action) => {
-      const rolloverCount = (action.rolloverCount ?? 0) + 1;
-      return { ...action, scheduledFor: currentDate, rolloverCount, isImportant: action.isImportant || rolloverCount > 2, updatedAt: new Date().toISOString() };
-    });
-    void Promise.all(moved.map((action) => saveAction(action, userId)))
-      .then(() => setActions((current) => current.map((action) => moved.find((item) => item.id === action.id) ?? action)))
-      .catch((error: unknown) => setErrorMessage(error instanceof Error ? error.message : "Не удалось перенести незавершённые дела."));
-  }, [actions, currentDate, isLoading, userId]);
-
   const visibleActions = useMemo(() => sortActions(actions, sortKey, sortDirection), [actions, sortKey, sortDirection]);
   const visibleGoals = useMemo(() => visibleActions.filter((action) => action.kind === "goal"), [visibleActions]);
   const todayKey = currentDate;
   const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc").sort((left, right) => Number(Boolean(right.isImportant)) - Number(Boolean(left.isImportant)) || left.order - right.order), [actions]);
-  const todayActions = useMemo(() => actActions.filter((action) => (action.scheduledFor || todayKey) === todayKey), [actActions, todayKey]);
+  const todayActions = useMemo(() => actActions.filter((action) => !action.needsReview && action.scheduledFor === todayKey), [actActions, todayKey]);
+  const reviewActions = actActions.filter((action) => !action.isCompleted && (action.needsReview || (action.scheduledFor && action.scheduledFor < todayKey && !action.recurrence && !action.recurringTaskId)));
+  const undatedActions = actActions.filter((action) => !action.needsReview && !action.scheduledFor);
 
   const closeActionModal = () => {
     if (isModalClosing) return;
@@ -476,6 +466,48 @@ export function Dashboard({ userId, email }: DashboardProps) {
       setActions((current) => current.map((item) => item.id === id ? next : item));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось обновить дело.");
+    }
+  };
+
+  const handleSchedule = async (id: string, scheduledFor?: string) => {
+    const action = actions.find((item) => item.id === id);
+    if (!action || (scheduledFor && scheduledFor < currentDate)) return;
+    const next = {
+      ...action,
+      scheduledFor,
+      needsReview: false,
+      rolloverCount: (action.rolloverCount ?? 0) + (action.scheduledFor && scheduledFor && scheduledFor > action.scheduledFor ? 1 : 0),
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      await saveAction(next, userId);
+      setActions((current) => current.map((item) => item.id === id ? next : item));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось назначить дату.");
+    }
+  };
+
+  const handleSendToReview = async (id: string) => {
+    const action = actions.find((item) => item.id === id);
+    if (!action || action.isCompleted) return;
+    const next = { ...action, needsReview: true, updatedAt: new Date().toISOString() };
+    try {
+      await saveAction(next, userId);
+      setActions((current) => current.map((item) => item.id === id ? next : item));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось отправить дело в разбор.");
+    }
+  };
+
+  const handleMoveNoteToToday = async (noteId: string) => {
+    try {
+      await moveBacklogNoteToToday(noteId, getLocalDateKey());
+      const data = await loadPlannerData();
+      setActions(normalizeActions(data.actions));
+      setBacklogGroups(data.backlogGroups);
+      setActiveSection("today");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось перенести запись.");
     }
   };
 
@@ -627,11 +659,11 @@ export function Dashboard({ userId, email }: DashboardProps) {
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
-            <TodayList actions={todayActions} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
+            <TodayList actions={todayActions} reviewActions={reviewActions} undatedActions={undatedActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
           ) : activeSection === "week" ? (
-            <WeekCalendar actions={actActions} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} />
+            <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} />
           ) : activeSection === "backlog" ? (
-            <BacklogBoard groups={backlogGroups} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} />
+            <BacklogBoard groups={backlogGroups} onMoveNoteToToday={handleMoveNoteToToday} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} />
           ) : (
             <section className="goals-view">
               <header className="goals-header">

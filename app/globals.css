@@ -4026,6 +4026,7 @@ select {
   min-width: 0;
   align-items: center;
   gap: 14px;
+  text-wrap: wrap;
 }
 
 .thoughts-folder-title > span {
@@ -4047,12 +4048,10 @@ select {
 }
 
 .thoughts-folder-title h1 {
-  overflow: hidden;
   font-size: clamp(28px, 8vw, 42px);
   letter-spacing: -0.055em;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.08;
+  white-space: normal;
 }
 
 .thoughts-folder-title p {
@@ -4221,16 +4220,83 @@ select {
   resize: vertical;
 }
 
+.daily-review {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  background: var(--bg);
+}
+
+.daily-review summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.daily-review summary span {
+  margin-left: 10px;
+  color: var(--muted);
+}
+
+.daily-review-list {
+  display: grid;
+  gap: 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.daily-review-list li {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  overflow-wrap: anywhere;
+}
+
+.daily-review p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.daily-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.daily-review-actions label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.daily-review-actions input {
+  max-width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  color: var(--text);
+  background: var(--bg);
+  font: inherit;
+}
+
 .thoughts-icon-picker {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+  max-height: min(320px, 45dvh);
+  overflow-y: auto;
+  padding: 4px;
+  overscroll-behavior: contain;
 }
 
 .thoughts-icon-picker button {
   display: grid;
-  width: 37px;
-  height: 37px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 11px;
@@ -4298,6 +4364,7 @@ select {
 
 .thoughts-notes > li {
   display: flex;
+  flex-wrap: wrap;
   min-width: 0;
   align-items: center;
   justify-content: space-between;
@@ -4308,7 +4375,13 @@ select {
   background: #ffffff;
 }
 
+.thoughts-note-move {
+  order: 3;
+  margin-left: auto;
+}
+
 .thoughts-note-text {
+  flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: 14px;
