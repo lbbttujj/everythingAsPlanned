@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { SharedList, SharedListInvitation, SharedListItem, SharedListMember, SharedListsData } from "@/lib/types";
+import type { FriendContact, SharedList, SharedListInvitation, SharedListItem, SharedListMember, SharedListsData } from "@/lib/types";
 
 type SharedListRow = {
   id: string;
@@ -39,6 +39,14 @@ type SharedListItemRow = {
   updated_at: string;
 };
 
+type FriendContactRow = {
+  id: string;
+  friend_user_id: string | null;
+  friend_email: string;
+  display_name: string;
+  created_at: string;
+};
+
 function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
@@ -67,24 +75,37 @@ function toItem(row: SharedListItemRow): SharedListItem {
   };
 }
 
+function toFriend(row: FriendContactRow): FriendContact {
+  return {
+    id: row.id,
+    friendUserId: row.friend_user_id,
+    email: row.friend_email,
+    name: row.display_name,
+    createdAt: row.created_at
+  };
+}
+
 export async function loadSharedListsData(userId: string): Promise<SharedListsData> {
   const supabase = createClient();
-  const [listsResult, membersResult, invitationsResult, itemsResult] = await Promise.all([
+  const [listsResult, membersResult, invitationsResult, itemsResult, friendsResult] = await Promise.all([
     supabase.from("shared_lists").select("*").order("updated_at", { ascending: false }),
     supabase.from("shared_list_members").select("*").order("joined_at"),
     supabase.from("shared_list_invitations").select("*").eq("status", "pending").order("created_at", { ascending: false }),
-    supabase.from("shared_list_items").select("*").order("position", { ascending: false }).order("created_at", { ascending: false })
+    supabase.from("shared_list_items").select("*").order("position", { ascending: false }).order("created_at", { ascending: false }),
+    supabase.from("friend_contacts").select("*").eq("user_id", userId).order("created_at")
   ]);
 
   throwIfError(listsResult.error);
   throwIfError(membersResult.error);
   throwIfError(invitationsResult.error);
   throwIfError(itemsResult.error);
+  throwIfError(friendsResult.error);
 
   const listRows = (listsResult.data ?? []) as SharedListRow[];
   const memberRows = (membersResult.data ?? []) as SharedListMemberRow[];
   const invitationRows = (invitationsResult.data ?? []) as SharedListInvitationRow[];
   const itemRows = (itemsResult.data ?? []) as SharedListItemRow[];
+  const friendRows = (friendsResult.data ?? []) as FriendContactRow[];
   const listTitles = new Map(listRows.map((list) => [list.id, list.title]));
   const invitations = invitationRows.map((row): SharedListInvitation => ({
     id: row.id,
@@ -113,8 +134,19 @@ export async function loadSharedListsData(userId: string): Promise<SharedListsDa
 
   return {
     lists,
-    invitations: invitations.filter((invitation) => invitation.inviterId !== userId)
+    invitations: invitations.filter((invitation) => invitation.inviterId !== userId),
+    friends: friendRows.map(toFriend)
   };
+}
+
+export async function createFriendContact(email: string, name: string) {
+  const { error } = await createClient().rpc("create_friend_contact", { p_email: email.trim().toLowerCase(), p_name: name.trim() });
+  throwIfError(error);
+}
+
+export async function removeFriend(contactId: string) {
+  const { error } = await createClient().rpc("remove_friend", { p_contact_id: contactId });
+  throwIfError(error);
 }
 
 export async function createSharedList(title: string) {

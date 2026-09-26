@@ -1840,6 +1840,97 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+.today-category-folders {
+  display: grid;
+  gap: 12px;
+}
+
+.today-category-folder {
+  display: grid;
+  gap: 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--task-category-color, #72789d) 28%, transparent);
+  border-radius: 20px;
+  padding: 11px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--task-category-color, #72789d) 12%, transparent), rgba(255, 255, 255, 0.02) 52%);
+}
+
+.today-category-folder-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  cursor: pointer;
+  padding: 1px 2px 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+}
+
+.today-category-folder-header:hover h3 {
+  color: var(--accent-strong);
+}
+
+.today-category-folder-header > div {
+  min-width: 0;
+}
+
+.today-category-folder-header > i {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: #7d8299;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 180ms ease;
+}
+
+.today-category-folder.is-collapsed .today-category-folder-header > i {
+  transform: rotate(-45deg) translateY(2px);
+}
+
+.today-category-folder-icon {
+  display: grid;
+  width: 29px;
+  height: 25px;
+  place-items: center;
+  border-radius: 8px 8px 10px 10px;
+  color: var(--task-category-color, #66709c);
+  background: color-mix(in srgb, var(--task-category-color, #72789d) 16%, transparent);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.today-category-folder-header h3,
+.today-category-folder-header span {
+  margin: 0;
+}
+
+.today-category-folder-header h3 {
+  color: #3a3d50;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+.today-category-folder-header div > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.today-category-folder.is-home { border-color: rgba(105, 139, 227, 0.25); background: linear-gradient(135deg, rgba(105, 139, 227, 0.11), rgba(255, 255, 255, 0.02) 52%); }
+.today-category-folder.is-shared { border-color: rgba(76, 160, 151, 0.28); background: linear-gradient(135deg, rgba(76, 160, 151, 0.11), rgba(255, 255, 255, 0.02) 52%); }
+.today-category-folder.is-personal { border-color: rgba(131, 101, 212, 0.25); background: linear-gradient(135deg, rgba(131, 101, 212, 0.1), rgba(255, 255, 255, 0.02) 52%); }
+.today-category-folder.is-work { border-color: rgba(205, 139, 66, 0.28); background: linear-gradient(135deg, rgba(205, 139, 66, 0.11), rgba(255, 255, 255, 0.02) 52%); }
+.today-category-folder.is-health { border-color: rgba(70, 153, 103, 0.3); background: linear-gradient(135deg, rgba(70, 153, 103, 0.11), rgba(255, 255, 255, 0.02) 52%); }
+
+.today-category-folder.is-home .today-category-folder-icon { color: #5a70bd; background: rgba(105, 139, 227, 0.16); }
+.today-category-folder.is-shared .today-category-folder-icon { color: #317d75; background: rgba(76, 160, 151, 0.16); }
+.today-category-folder.is-personal .today-category-folder-icon { color: #7255bb; background: rgba(131, 101, 212, 0.15); }
+.today-category-folder.is-work .today-category-folder-icon { color: #a7661c; background: rgba(205, 139, 66, 0.16); }
+.today-category-folder.is-health .today-category-folder-icon { color: #28754b; background: rgba(70, 153, 103, 0.16); }
+
 .todo-list {
   display: grid;
   gap: 8px;
@@ -1885,6 +1976,81 @@ button {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.task-category {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  border: 1px solid color-mix(in srgb, var(--task-category-color, #72789d) 30%, transparent);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--task-category-color, #737991);
+  background: color-mix(in srgb, var(--task-category-color, #72789d) 9%, transparent);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.task-category-home { border-color: rgba(105, 139, 227, 0.25); color: #5a70bd; background: rgba(105, 139, 227, 0.09); }
+.task-category-shared { border-color: rgba(76, 160, 151, 0.28); color: #317d75; background: rgba(76, 160, 151, 0.1); }
+.task-category-personal { border-color: rgba(131, 101, 212, 0.26); color: #7255bb; background: rgba(131, 101, 212, 0.09); }
+.task-category-work { border-color: rgba(205, 139, 66, 0.28); color: #a7661c; background: rgba(205, 139, 66, 0.1); }
+.task-category-health { border-color: rgba(70, 153, 103, 0.3); color: #28754b; background: rgba(70, 153, 103, 0.1); }
+
+.category-manager-backdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: 16px;
+  background: rgba(17, 18, 30, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.category-manager {
+  display: grid;
+  width: min(100%, 620px);
+  max-height: min(78dvh, 700px);
+  gap: 14px;
+  overflow: auto;
+  border: 1px solid rgba(126, 132, 177, 0.25);
+  border-radius: 24px;
+  padding: 18px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 -16px 42px rgba(9, 10, 24, 0.2);
+}
+
+.category-manager > header,
+.category-manager-item,
+.category-create-form {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-manager > header { grid-template-columns: 1fr auto; }
+.category-manager h2, .category-manager p { margin: 0; }
+.category-manager > p { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.category-create-form { grid-template-columns: minmax(0, 1fr) 48px 34px auto; }
+.category-manager-list { display: grid; gap: 8px; }
+.category-manager-item { grid-template-columns: 48px minmax(0, 1fr) 34px auto auto; border: 1px solid color-mix(in srgb, var(--task-category-color) 28%, transparent); border-radius: 14px; padding: 8px; background: color-mix(in srgb, var(--task-category-color) 7%, transparent); }
+.category-icon-picker-trigger { display: grid; width: 48px; height: 36px; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: #fafaff; cursor: pointer; font-size: 18px; }
+.category-color-input { width: 34px; height: 34px; border: 0; border-radius: 9px; padding: 2px; background: transparent; }
+.category-icon-picker-area { grid-column: 1 / -1; padding-top: 2px; }
+
+@media (max-width: 500px) {
+  .category-create-form { grid-template-columns: minmax(0, 1fr) 42px 34px; }
+  .category-create-form .button { grid-column: 1 / -1; }
+  .category-manager-item { grid-template-columns: 42px minmax(0, 1fr) 34px auto; }
+  .category-icon-picker-trigger { width: 42px; }
+  .category-manager-item .mini-button { grid-column: 2 / 4; }
+  .category-manager-item .todo-action-button { grid-column: 4; grid-row: 1; }
 }
 
 .todo-check {
@@ -2325,6 +2491,10 @@ button {
   margin-top: 4px;
 }
 
+.week-task-copy .task-category {
+  margin-top: 4px;
+}
+
 .week-task.is-completed strong {
   color: var(--muted);
   text-decoration: line-through;
@@ -2749,6 +2919,92 @@ button {
   gap: 8px;
 }
 
+.shared-friends-panel {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.shared-friends-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shared-friends-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.shared-friends-title span {
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: rgba(91, 92, 226, 0.11);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.shared-friend-list {
+  display: grid;
+  gap: 7px;
+}
+
+.shared-friend-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.shared-friend-card {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.shared-friend-card strong,
+.shared-friend-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-friend-card strong {
+  font-size: 12px;
+}
+
+.shared-friend-card small,
+.shared-friends-empty {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.shared-friends-empty {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.shared-friend-form {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) auto;
+  gap: 8px;
+}
+
+.shared-friend-invite-form select {
+  min-width: 0;
+}
+
 .shared-leave-button {
   justify-self: start;
 }
@@ -3119,7 +3375,8 @@ button {
   }
 
   .shared-invite-form,
-  .shared-item-composer {
+  .shared-item-composer,
+  .shared-friend-form {
     grid-template-columns: minmax(0, 1fr);
   }
 

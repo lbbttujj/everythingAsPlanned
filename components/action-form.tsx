@@ -1,6 +1,6 @@
 "use client";
 
-import type { ActDraft } from "@/lib/types";
+import type { ActDraft, TaskCategoryDefinition } from "@/lib/types";
 
 type ActionFormProps = {
   draft: ActDraft;
@@ -11,9 +11,10 @@ type ActionFormProps = {
   isEditing: boolean;
   files: File[];
   onFilesChange: (files: File[]) => void;
+  categories: TaskCategoryDefinition[];
 };
 
-export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLabel, isEditing, files, onFilesChange }: ActionFormProps) {
+export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLabel, isEditing, files, onFilesChange, categories }: ActionFormProps) {
   const recurrence = draft.recurrence;
   const selectedFile = files[0];
   const formattedDate = draft.scheduledFor ? draft.scheduledFor.split("-").reverse().join(".") : "";
@@ -48,6 +49,14 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
           <label className="action-setting-row">
             <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">▣</span>Дата</span>
             <span className="action-date-control"><span>{formattedDate || "Сегодня"}</span><input aria-label="Дата дела" type="date" value={draft.scheduledFor} onChange={(event) => onDraftChange({ ...draft, scheduledFor: event.target.value })} /></span>
+          </label>
+
+          <label className="action-setting-row">
+            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">◌</span>Группа</span>
+            <select className="action-inline-select" aria-label="Группа дела" value={draft.taskCategory} onChange={(event) => onDraftChange({ ...draft, taskCategory: event.target.value as ActDraft["taskCategory"] })}>
+              <option value="">◌ Без группы</option>
+              {categories.map((category) => <option value={category.id} key={category.id}>{category.icon} {category.title}</option>)}
+            </select>
           </label>
 
           <label className="action-setting-row action-toggle-row">

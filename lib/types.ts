@@ -9,6 +9,17 @@ export type LifeValueId =
   | "peace";
 
 export type ActionKind = "goal" | "act";
+export type TaskCategory = string;
+
+export type TaskCategoryDefinition = {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
 export type Recurrence = { frequency: "weekly" | "monthly"; days: number[]; endDate: string; endMode: "always" | "until"; seriesId?: string };
 export type ActionStatus = "new" | "reviewed" | "active" | "archived";
 
@@ -51,6 +62,7 @@ export type ActionItem = {
   goalAssessment?: GoalAssessment;
   score: number;
   status: ActionStatus;
+  taskCategory?: TaskCategory;
   isImportant?: boolean;
   rolloverCount?: number;
   needsReview?: boolean;
@@ -72,6 +84,7 @@ export type RecurringTask = {
   consequences: ConsequenceSet;
   answers: AnswerSet;
   status: ActionStatus;
+  taskCategory: TaskCategory;
   isImportant: boolean;
   recurrence: Recurrence;
   createdAt: string;
@@ -95,6 +108,7 @@ export type ActDraft = {
   consequences: ConsequenceSet;
   answers: AnswerSet;
   status: ActionStatus;
+  taskCategory: TaskCategory;
   isImportant: boolean;
   recurrence: Recurrence | null;
   scheduledFor: string;
@@ -170,7 +184,16 @@ export type SharedList = {
   updatedAt: string;
 };
 
+export type FriendContact = {
+  id: string;
+  friendUserId: string | null;
+  email: string;
+  name: string;
+  createdAt: string;
+};
+
 export type SharedListsData = {
   lists: SharedList[];
   invitations: SharedListInvitation[];
+  friends: FriendContact[];
 };

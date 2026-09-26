@@ -6,16 +6,17 @@ import { ActionForm } from "@/components/action-form";
 import { ActionTable } from "@/components/action-table";
 import { BacklogBoard } from "@/components/backlog-board";
 import { GoalForm } from "@/components/goal-form";
+import { TaskCategoryManager } from "@/components/task-category-manager";
 import { TodayList } from "@/components/today-list";
 import { WeekCalendar } from "@/components/week-calendar";
 import { moveBacklogNoteToToday } from "@/lib/planner-repository";
 import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentComplete } from "@/lib/goal-assessment";
-import { deleteAction, deleteBacklogGroup, deleteBacklogNote, deleteRecurringTask, loadPlannerData, migrateLegacyLocalData, saveAction, saveBacklogGroup, saveBacklogNote, saveRecurringTask, uploadActionAttachments, uploadBacklogNoteAttachments } from "@/lib/planner-repository";
+import { deleteAction, deleteBacklogGroup, deleteBacklogNote, deleteRecurringTask, deleteTaskCategory, loadPlannerData, migrateLegacyLocalData, saveAction, saveBacklogGroup, saveBacklogNote, saveRecurringTask, saveTaskCategory, uploadActionAttachments, uploadBacklogNoteAttachments } from "@/lib/planner-repository";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
 import { getLocalDateKey } from "@/lib/schedule";
 import { recurrenceDates } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/client";
-import type { ActionDraft, ActionItem, ActDraft, BacklogGroup, GoalAnswerSet, GoalDraft, Recurrence, RecurringTask } from "@/lib/types";
+import type { ActionDraft, ActionItem, ActDraft, BacklogGroup, GoalAnswerSet, GoalDraft, Recurrence, RecurringTask, TaskCategoryDefinition } from "@/lib/types";
 
 type SortKey = "score" | "title" | "values" | "status" | "manual";
 type SortDirection = "asc" | "desc";
@@ -40,6 +41,7 @@ const defaultActDraft: ActDraft = {
     effort: 3
   },
   status: "new",
+  taskCategory: "",
   isImportant: false,
   recurrence: null,
   scheduledFor: ""
@@ -148,6 +150,7 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
     answers: { ...draft.answers },
     score: calculateActScore(draft),
     status: draft.status,
+    taskCategory: draft.taskCategory,
     isImportant: draft.isImportant,
     needsReview: existing?.needsReview && draft.scheduledFor === existing.scheduledFor,
     rolloverCount: (existing?.rolloverCount ?? 0) + (existing?.scheduledFor && draft.scheduledFor && draft.scheduledFor > existing.scheduledFor ? 1 : 0),
@@ -198,6 +201,7 @@ function draftFromAction(action: ActionItem): ActionDraft {
     consequences: { ...action.consequences },
     answers: { ...action.answers },
     status: action.status,
+    taskCategory: action.taskCategory ?? "",
     isImportant: action.isImportant ?? false,
     recurrence: action.recurrence ?? null,
     scheduledFor: action.scheduledFor ?? ""
@@ -217,6 +221,7 @@ function createRecurringTask(action: ActionItem, recurrence: Recurrence, id = cr
     consequences: action.consequences,
     answers: action.answers,
     status: action.status,
+    taskCategory: action.taskCategory ?? "",
     isImportant: action.isImportant ?? false,
     recurrence,
     createdAt: action.createdAt,
@@ -277,7 +282,7 @@ function getDataErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Не удалось загрузить данные.";
 
   if (message.includes("Could not find the table")) {
-    return "База Supabase ещё не инициализирована. Примени SQL-миграцию из supabase/migrations/20260805214420_planner_auth_schema.sql.";
+    return `Supabase не видит одну из таблиц в API: ${message}`;
   }
 
   return message;
@@ -291,6 +296,7 @@ type DashboardProps = {
 export function Dashboard({ userId, email }: DashboardProps) {
   const [actions, setActions] = useState<ActionItem[]>([]);
   const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>([]);
+  const [taskCategories, setTaskCategories] = useState<TaskCategoryDefinition[]>([]);
   const [draft, setDraft] = useState<ActionDraft>(cloneDraft(defaultGoalDraft));
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -305,6 +311,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [currentDate, setCurrentDate] = useState(() => getLocalDateKey());
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [editingRecurringTaskId, setEditingRecurringTaskId] = useState<string | null>(null);
   const [editingRecurringSeriesId, setEditingRecurringSeriesId] = useState<string | null>(null);
 
@@ -318,6 +325,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
         if (migrated) data = await loadPlannerData();
         setActions(normalizeActions(data.actions));
         setBacklogGroups(data.backlogGroups);
+        setTaskCategories(data.taskCategories);
       } catch (error) {
         setErrorMessage(getDataErrorMessage(error));
       } finally {
@@ -342,7 +350,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const todayKey = currentDate;
   const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc").sort((left, right) => Number(Boolean(right.isImportant)) - Number(Boolean(left.isImportant)) || left.order - right.order), [actions]);
   const todayActions = useMemo(() => actActions.filter((action) => !action.needsReview && action.scheduledFor === todayKey), [actActions, todayKey]);
-  const reviewActions = actActions.filter((action) => !action.isCompleted && (action.needsReview || (action.scheduledFor && action.scheduledFor < todayKey && !action.recurrence && !action.recurringTaskId)));
+  const reviewActions = actActions.filter((action) => !action.isCompleted && action.needsReview);
   const undatedActions = actActions.filter((action) => !action.needsReview && !action.scheduledFor);
 
   const closeActionModal = () => {
@@ -415,6 +423,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
       const data = await loadPlannerData();
       setActions(normalizeActions(data.actions));
       setBacklogGroups(data.backlogGroups);
+      setTaskCategories(data.taskCategories);
       setDraft(cloneDraft(defaultGoalDraft));
       setAttachmentFiles([]);
       setEditingId(null);
@@ -505,6 +514,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
       const data = await loadPlannerData();
       setActions(normalizeActions(data.actions));
       setBacklogGroups(data.backlogGroups);
+      setTaskCategories(data.taskCategories);
       setActiveSection("today");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось перенести запись.");
@@ -550,6 +560,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
       const data = await loadPlannerData();
       setActions(normalizeActions(data.actions));
       setBacklogGroups(data.backlogGroups);
+      setTaskCategories(data.taskCategories);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось добавить заметку.");
     }
@@ -628,7 +639,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
     } else {
       const actDraft = cloneDraft(defaultActDraft);
       if (actDraft.kind === "act") {
-        setDraft({ ...actDraft, scheduledFor });
+        setDraft({ ...actDraft, scheduledFor, taskCategory: taskCategories[0]?.id ?? "" });
       }
     }
     setIsModalOpen(true);
@@ -658,9 +669,9 @@ export function Dashboard({ userId, email }: DashboardProps) {
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
-            <TodayList actions={todayActions} reviewActions={reviewActions} undatedActions={undatedActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} />
+            <TodayList actions={todayActions} reviewActions={reviewActions} undatedActions={undatedActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} onManageCategories={() => setIsCategoryManagerOpen(true)} />
           ) : activeSection === "week" ? (
-            <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} />
+            <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} categories={taskCategories} />
           ) : activeSection === "backlog" ? (
             <BacklogBoard groups={backlogGroups} onMoveNoteToToday={handleMoveNoteToToday} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} />
           ) : (
@@ -712,13 +723,14 @@ export function Dashboard({ userId, email }: DashboardProps) {
                 {draft.kind === "goal" ? (
                   <GoalForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
                 ) : (
-                  <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
+                  <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} categories={taskCategories} />
                 )}
               </div>
             </div>
           </div>
         ) : null}
         {isRecurringModalOpen ? <RecurringManager actions={actions} onClose={() => setIsRecurringModalOpen(false)} onEditSeries={(seriesId) => { const action = actions.find((item) => item.recurrence?.seriesId === seriesId); if (action) { setIsRecurringModalOpen(false); setEditingRecurringTaskId(action.recurringTaskId ?? createId()); setEditingRecurringSeriesId(seriesId); setEditingId(action.id); setDraft(draftFromAction(action)); setAttachmentFiles([]); setIsModalOpen(true); } }} onDeleteSeries={async (seriesId) => { const seriesActions = actions.filter((action) => action.recurrence?.seriesId === seriesId); await Promise.all(seriesActions.map((action) => deleteAction(action.id))); const recurringTaskId = seriesActions[0]?.recurringTaskId; if (recurringTaskId) await deleteRecurringTask(recurringTaskId); setActions((current) => current.filter((action) => action.recurrence?.seriesId !== seriesId)); }} /> : null}
+        {isCategoryManagerOpen ? <TaskCategoryManager categories={taskCategories} onClose={() => setIsCategoryManagerOpen(false)} onCreate={async (title, icon, color) => { const now = new Date().toISOString(); const category = { id: createId(), title, icon, color, position: taskCategories.length, createdAt: now, updatedAt: now }; try { await saveTaskCategory(category, userId); setTaskCategories((current) => [...current, category]); } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Не удалось создать группу."); } }} onUpdate={async (category) => { try { const next = { ...category, updatedAt: new Date().toISOString() }; await saveTaskCategory(next, userId); setTaskCategories((current) => current.map((item) => item.id === next.id ? next : item)); } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить группу."); } }} onDelete={async (id) => { try { await deleteTaskCategory(id); const data = await loadPlannerData(); setActions(normalizeActions(data.actions)); setTaskCategories(data.taskCategories); } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Не удалось удалить группу."); } }} /> : null}
       </div>
     </main>
   );

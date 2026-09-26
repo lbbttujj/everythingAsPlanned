@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { ActionItem, Attachment, BacklogGroup, BacklogNote, RecurringTask } from "@/lib/types";
+import type { ActionItem, Attachment, BacklogGroup, BacklogNote, RecurringTask, TaskCategory, TaskCategoryDefinition } from "@/lib/types";
 
 type PlannerItemRow = {
   id: string;
@@ -12,6 +12,7 @@ type PlannerItemRow = {
   goal_assessment: ActionItem["goalAssessment"] | null;
   score: number;
   status: ActionItem["status"];
+  task_category: TaskCategory | null;
   is_important: boolean;
   rollover_count: number;
   needs_review: boolean;
@@ -19,6 +20,16 @@ type PlannerItemRow = {
   recurring_task_id: string | null;
   is_completed: boolean;
   scheduled_for: string | null;
+  position: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type TaskCategoryRow = {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
   position: number;
   created_at: string;
   updated_at: string;
@@ -67,6 +78,7 @@ function toAction(row: PlannerItemRow, attachments: AttachmentRow[]): ActionItem
     goalAssessment: row.goal_assessment ?? undefined,
     score: row.score,
     status: row.status,
+    taskCategory: row.task_category ?? "",
     isImportant: row.is_important,
     rolloverCount: row.rollover_count,
     needsReview: row.needs_review,
@@ -94,6 +106,7 @@ function toActionRow(item: ActionItem, userId: string) {
     goal_assessment: item.goalAssessment ?? null,
     score: item.score,
     status: item.status,
+    task_category: item.taskCategory || null,
     is_important: item.isImportant ?? false,
     rollover_count: item.rolloverCount ?? 0,
     needs_review: item.needsReview ?? false,
@@ -130,26 +143,43 @@ function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
 }
 
+function toTaskCategory(row: TaskCategoryRow): TaskCategoryDefinition {
+  return { id: row.id, title: row.title, icon: row.icon, color: row.color, position: row.position, createdAt: row.created_at, updatedAt: row.updated_at };
+}
+
 export async function loadPlannerData() {
   const supabase = createClient();
-  const [itemsResult, groupsResult, notesResult, attachmentsResult] = await Promise.all([
+  const [itemsResult, groupsResult, notesResult, attachmentsResult, categoriesResult] = await Promise.all([
     supabase.from("planner_items").select("*").order("position"),
     supabase.from("backlog_groups").select("*").order("position"),
     supabase.from("backlog_notes").select("*").order("created_at"),
-    supabase.from("attachments").select("*").order("created_at")
+    supabase.from("attachments").select("*").order("created_at"),
+    supabase.from("task_categories").select("*").order("position").order("created_at")
   ]);
 
   throwIfError(itemsResult.error);
   throwIfError(groupsResult.error);
   throwIfError(notesResult.error);
   throwIfError(attachmentsResult.error);
+  throwIfError(categoriesResult.error);
 
   const notes = (notesResult.data ?? []) as BacklogNoteRow[];
   const attachments = (attachmentsResult.data ?? []) as AttachmentRow[];
   return {
     actions: ((itemsResult.data ?? []) as PlannerItemRow[]).map((item) => toAction(item, attachments)),
-    backlogGroups: ((groupsResult.data ?? []) as BacklogGroupRow[]).map((group) => toBacklogGroup(group, notes, attachments))
+    backlogGroups: ((groupsResult.data ?? []) as BacklogGroupRow[]).map((group) => toBacklogGroup(group, notes, attachments)),
+    taskCategories: ((categoriesResult.data ?? []) as TaskCategoryRow[]).map(toTaskCategory)
   };
+}
+
+export async function saveTaskCategory(category: TaskCategoryDefinition, userId: string) {
+  const { error } = await createClient().from("task_categories").upsert({ id: category.id, user_id: userId, title: category.title, icon: category.icon, color: category.color, position: category.position, created_at: category.createdAt, updated_at: category.updatedAt });
+  throwIfError(error);
+}
+
+export async function deleteTaskCategory(id: string) {
+  const { error } = await createClient().from("task_categories").delete().eq("id", id);
+  throwIfError(error);
 }
 
 export async function saveAction(item: ActionItem, userId: string) {
@@ -167,6 +197,7 @@ function toRecurringTaskRow(task: RecurringTask, userId: string) {
     consequences: task.consequences,
     answers: task.answers,
     status: task.status,
+    task_category: task.taskCategory || null,
     is_important: task.isImportant,
     recurrence: task.recurrence,
     created_at: task.createdAt,

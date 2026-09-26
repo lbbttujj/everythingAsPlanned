@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 
 import { getLocalDateKey, getWeekDays } from "@/lib/schedule";
-import type { ActionItem } from "@/lib/types";
+import { getTaskCategory, taskCategoryStyle } from "@/lib/task-categories";
+import type { ActionItem, TaskCategoryDefinition } from "@/lib/types";
 
 type WeekCalendarProps = {
   actions: ActionItem[];
@@ -13,6 +14,7 @@ type WeekCalendarProps = {
   onEdit: (action: ActionItem) => void;
   onToggleComplete: (id: string) => void;
   onManageRecurring: () => void;
+  categories: TaskCategoryDefinition[];
 };
 
 const weekdayFormatter = new Intl.DateTimeFormat("ru-RU", { weekday: "long" });
@@ -39,7 +41,7 @@ function getMonthDays(referenceDate: Date) {
   return Array.from({ length: 42 }, (_, index) => shiftDate(start, index));
 }
 
-export function WeekCalendar({ actions, onSendToReview, onAddForDate, onDelete, onEdit, onToggleComplete, onManageRecurring }: WeekCalendarProps) {
+export function WeekCalendar({ actions, onSendToReview, onAddForDate, onDelete, onEdit, onToggleComplete, onManageRecurring, categories }: WeekCalendarProps) {
   const today = getLocalDateKey();
   const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [isMonthOpen, setIsMonthOpen] = useState(false);
@@ -147,6 +149,7 @@ export function WeekCalendar({ actions, onSendToReview, onAddForDate, onDelete, 
                       <button className={`todo-check ${action.isCompleted ? "is-completed" : ""}`} type="button" onClick={() => onToggleComplete(action.id)} aria-label={action.isCompleted ? `Вернуть «${action.title}» в дела` : `Отметить «${action.title}» выполненным`}>{action.isCompleted ? "✓" : null}</button>
                       <div className="week-task-copy">
                         <strong>{action.title}</strong>
+                        {(() => { const category = getTaskCategory(categories, action.taskCategory); return <span className="task-category" style={taskCategoryStyle(category)}><span aria-hidden="true">{category.icon}</span>{category.title}</span>; })()}
                         {action.isImportant ? <span className="important-badge">Важно</span> : null}
                       </div>
                       <div className="todo-actions">

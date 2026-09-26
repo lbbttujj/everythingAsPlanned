@@ -1,6 +1,9 @@
 "use client";
 
-import type { ActionItem } from "@/lib/types";
+import { useState } from "react";
+
+import type { ActionItem, TaskCategory, TaskCategoryDefinition } from "@/lib/types";
+import { getTaskCategory, taskCategoryStyle, uncategorizedTaskCategory } from "@/lib/task-categories";
 
 type TodayListProps = {
   actions: ActionItem[];
@@ -13,20 +16,31 @@ type TodayListProps = {
   onDelete: (id: string) => void;
   onEdit: (action: ActionItem) => void;
   onToggleComplete: (id: string) => void;
+  categories: TaskCategoryDefinition[];
+  onManageCategories: () => void;
 };
 
 function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 }
 
-export function TodayList({ actions, reviewActions, undatedActions, todayKey, onSchedule, onSendToReview, onAdd, onDelete, onEdit, onToggleComplete }: TodayListProps) {
+export function TodayList({ actions, reviewActions, undatedActions, todayKey, onSchedule, onSendToReview, onAdd, onDelete, onEdit, onToggleComplete, categories, onManageCategories }: TodayListProps) {
   const activeActions = actions.filter((action) => !action.isCompleted);
   const completedActions = actions.filter((action) => action.isCompleted);
+  const [collapsedCategories, setCollapsedCategories] = useState<TaskCategory[]>([]);
+  const activeGroups = [...categories, uncategorizedTaskCategory]
+    .map((category) => ({ category, actions: activeActions.filter((action) => getTaskCategory(categories, action.taskCategory).id === category.id) }))
+    .filter((group) => group.actions.length > 0);
+  const renderCategory = (action: ActionItem) => {
+    const category = getTaskCategory(categories, action.taskCategory);
+    return <span className="task-category" style={taskCategoryStyle(category)}><span aria-hidden="true">{category.icon}</span>{category.title}</span>;
+  };
   const renderTask = (action: ActionItem) => (
     <li className={`todo-item ${action.isImportant ? "is-important" : ""}`} key={action.id}>
       <button className={`todo-check ${action.isCompleted ? "is-completed" : ""}`} type="button" onClick={() => onToggleComplete(action.id)} aria-label={`${action.isCompleted ? "Вернуть" : "Выполнить"} «${action.title}»`}>{action.isCompleted ? "✓" : null}</button>
       <div className="todo-copy">
         <strong>{action.title}</strong>
+        {renderCategory(action)}
         {action.isImportant ? <span className="important-badge">Важно</span> : null}
       </div>
       <div className="todo-actions">
@@ -44,6 +58,7 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
           <h1>Сегодня</h1>
           <p suppressHydrationWarning>{todayLabel()}</p>
         </div>
+        <button className="mini-button" type="button" onClick={onManageCategories}>Группы</button>
       </header>
 
       <button className="today-quick-add" type="button" onClick={onAdd}>
@@ -58,9 +73,23 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
         </div>
 
         {activeActions.length ? (
-          <ul className="todo-list">
-            {activeActions.map(renderTask)}
-          </ul>
+          <div className="today-category-folders">
+            {activeGroups.map(({ category, actions: categoryActions }) => (
+              <section className={`today-category-folder ${collapsedCategories.includes(category.id) ? "is-collapsed" : ""}`} style={taskCategoryStyle(category)} key={category.id} aria-label={`${category.title}: ${categoryActions.length} дел`}>
+                <button className="today-category-folder-header" type="button" onClick={() => setCollapsedCategories((current) => current.includes(category.id) ? current.filter((item) => item !== category.id) : [...current, category.id])} aria-expanded={!collapsedCategories.includes(category.id)}>
+                  <span className="today-category-folder-icon" aria-hidden="true">{category.icon}</span>
+                  <div>
+                    <h3>{category.title}</h3>
+                    <span>{categoryActions.length} {categoryActions.length === 1 ? "дело" : "дел"}</span>
+                  </div>
+                  <i aria-hidden="true" />
+                </button>
+                {!collapsedCategories.includes(category.id) ? <ul className="todo-list">
+                  {categoryActions.map(renderTask)}
+                </ul> : null}
+              </section>
+            ))}
+          </div>
         ) : (
           <div className="today-empty-state">
             <span>○</span>
@@ -85,6 +114,7 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
           {items.length ? <ul className="daily-review-list">
             {items.map((action) => <li key={action.id}>
               <strong>{action.title}</strong>
+              {renderCategory(action)}
               <div className="daily-review-actions">
                 <button className="mini-button" type="button" onClick={() => void onSchedule(action.id, todayKey)}>На сегодня</button>
                 <label>На дату<input aria-label={`Назначить дату для «${action.title}»`} type="date" min={todayKey} value="" onChange={(event) => { if (event.target.value) void onSchedule(action.id, event.target.value); }} /></label>
@@ -109,6 +139,7 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
                 <button className="todo-check is-completed" type="button" onClick={() => onToggleComplete(action.id)} aria-label={`Вернуть «${action.title}» в текущие дела`}>✓</button>
                 <div className="todo-copy">
                   <strong>{action.title}</strong>
+                  {renderCategory(action)}
                   {action.isImportant ? <span className="important-badge">Важно</span> : null}
                 </div>
               </li>

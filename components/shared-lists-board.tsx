@@ -4,6 +4,7 @@ import { type PointerEvent, useCallback, useEffect, useMemo, useState } from "re
 
 import {
   cancelSharedListInvitation,
+  createFriendContact,
   createSharedList,
   createSharedListItem,
   deleteSharedList,
@@ -29,7 +30,7 @@ type Confirmation =
   | { kind: "leave-list"; listId: string; title: string }
   | { kind: "remove-member"; listId: string; userId: string; email: string };
 
-const emptyData: SharedListsData = { lists: [], invitations: [] };
+const emptyData: SharedListsData = { lists: [], invitations: [], friends: [] };
 
 export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
   const [data, setData] = useState<SharedListsData>(emptyData);
@@ -41,7 +42,10 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
   const [newItemText, setNewItemText] = useState("");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [selectedFriendId, setSelectedFriendId] = useState("");
+  const [friendName, setFriendName] = useState("");
+  const [friendEmail, setFriendEmail] = useState("");
+  const [isAddingFriend, setIsAddingFriend] = useState(false);
   const [isMembersOpen, setIsMembersOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState("");
@@ -137,12 +141,23 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
     }, "Не удалось сохранить порядок пунктов.");
   };
 
-  const submitInvite = () => void run(async () => {
-    if (!selectedList || !inviteEmail.trim()) return;
-    await inviteSharedListMember(selectedList.id, inviteEmail);
-    setInviteEmail("");
+  const submitFriendInvite = () => void run(async () => {
+    if (!selectedList || !selectedFriendId) return;
+    const friend = data.friends.find((contact) => contact.id === selectedFriendId);
+    if (!friend) return;
+    await inviteSharedListMember(selectedList.id, friend.email);
+    setSelectedFriendId("");
     await refresh(selectedList.id);
-  }, "Не удалось отправить приглашение.");
+  }, "Не удалось пригласить друга в список.");
+
+  const submitFriend = () => void run(async () => {
+    if (!friendName.trim() || !friendEmail.trim()) return;
+    await createFriendContact(friendEmail, friendName);
+    setFriendName("");
+    setFriendEmail("");
+    setIsAddingFriend(false);
+    await refresh(selectedList?.id ?? null);
+  }, "Не удалось добавить друга.");
 
   const submitRename = () => void run(async () => {
     if (!selectedList || !renameTitle.trim()) return;
@@ -197,6 +212,11 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
     const isOwner = selectedList.ownerId === userId;
     const activeMembers = selectedList.members.filter((member) => member.isActive);
     const memberEmails = new Map(selectedList.members.map((member) => [member.userId, member.email]));
+    const unavailableFriendEmails = new Set([
+      ...activeMembers.map((member) => member.email.toLowerCase()),
+      ...selectedList.pendingInvitations.map((invitation) => invitation.invitedEmail.toLowerCase())
+    ]);
+    const availableFriends = data.friends.filter((friend) => !unavailableFriendEmails.has(friend.email.toLowerCase()));
 
     return (
       <section className="shared-list-detail">
@@ -231,9 +251,25 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
 
             {isOwner ? (
               <>
-                <div className="shared-invite-form">
-                  <input className="input" type="email" placeholder="user@example.com" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitInvite()} />
-                  <button className="button" type="button" onClick={submitInvite}>Пригласить</button>
+                <section className="shared-friends-panel">
+                  <div className="shared-friends-panel-heading">
+                    <div className="shared-friends-title"><h4>Друзья</h4><span>{data.friends.length}</span></div>
+                    <button className="mini-button" type="button" onClick={() => setIsAddingFriend((current) => !current)}>{isAddingFriend ? "Закрыть" : "Добавить друга"}</button>
+                  </div>
+                  {isAddingFriend ? <div className="shared-friend-form">
+                    <input className="input" aria-label="Имя друга" placeholder="Имя друга" value={friendName} onChange={(event) => setFriendName(event.target.value)} />
+                    <input className="input" type="email" aria-label="E-mail друга" placeholder="friend@example.com" value={friendEmail} onChange={(event) => setFriendEmail(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitFriend()} />
+                    <button className="mini-button" type="button" onClick={submitFriend}>Добавить друга</button>
+                  </div> : null}
+
+                </section>
+
+                <div className="shared-invite-form shared-friend-invite-form">
+                  <select className="input" aria-label="Выбрать друга для приглашения" value={selectedFriendId} onChange={(event) => setSelectedFriendId(event.target.value)} disabled={!availableFriends.length}>
+                    <option value="">{availableFriends.length ? "Выбери друга" : "Нет доступных друзей"}</option>
+                    {availableFriends.map((friend) => <option key={friend.id} value={friend.id}>{friend.name} · {friend.email}</option>)}
+                  </select>
+                  <button className="button" type="button" onClick={submitFriendInvite} disabled={!selectedFriendId}>Пригласить</button>
                 </div>
                 {selectedList.pendingInvitations.length ? (
                   <div className="shared-pending-list">
