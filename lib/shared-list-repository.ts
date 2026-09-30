@@ -87,25 +87,23 @@ function toFriend(row: FriendContactRow): FriendContact {
 
 export async function loadSharedListsData(userId: string): Promise<SharedListsData> {
   const supabase = createClient();
-  const [listsResult, membersResult, invitationsResult, itemsResult, friendsResult] = await Promise.all([
+  const [listsResult, membersResult, invitationsResult, itemsResult, friends] = await Promise.all([
     supabase.from("shared_lists").select("*").order("updated_at", { ascending: false }),
     supabase.from("shared_list_members").select("*").order("joined_at"),
     supabase.from("shared_list_invitations").select("*").eq("status", "pending").order("created_at", { ascending: false }),
     supabase.from("shared_list_items").select("*").order("position", { ascending: false }).order("created_at", { ascending: false }),
-    supabase.from("friend_contacts").select("*").eq("user_id", userId).order("created_at")
+    loadFriendContacts(userId)
   ]);
 
   throwIfError(listsResult.error);
   throwIfError(membersResult.error);
   throwIfError(invitationsResult.error);
   throwIfError(itemsResult.error);
-  throwIfError(friendsResult.error);
 
   const listRows = (listsResult.data ?? []) as SharedListRow[];
   const memberRows = (membersResult.data ?? []) as SharedListMemberRow[];
   const invitationRows = (invitationsResult.data ?? []) as SharedListInvitationRow[];
   const itemRows = (itemsResult.data ?? []) as SharedListItemRow[];
-  const friendRows = (friendsResult.data ?? []) as FriendContactRow[];
   const listTitles = new Map(listRows.map((list) => [list.id, list.title]));
   const invitations = invitationRows.map((row): SharedListInvitation => ({
     id: row.id,
@@ -135,8 +133,14 @@ export async function loadSharedListsData(userId: string): Promise<SharedListsDa
   return {
     lists,
     invitations: invitations.filter((invitation) => invitation.inviterId !== userId),
-    friends: friendRows.map(toFriend)
+    friends
   };
+}
+
+export async function loadFriendContacts(userId: string): Promise<FriendContact[]> {
+  const { data, error } = await createClient().from("friend_contacts").select("*").eq("user_id", userId).order("created_at");
+  throwIfError(error);
+  return ((data ?? []) as FriendContactRow[]).map(toFriend);
 }
 
 export async function createFriendContact(email: string, name: string) {

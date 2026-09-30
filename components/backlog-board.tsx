@@ -29,6 +29,7 @@ type BacklogBoardProps = {
   onReorderGroups: (draggedGroupId: string, targetGroupId: string) => void;
   userId: string;
   email: string;
+  friendsRevision: number;
 };
 
 function fallbackIcon(group: Pick<BacklogGroup, "id" | "title" | "icon">) {
@@ -67,7 +68,7 @@ function buildBreadcrumbs(groups: BacklogGroup[], currentGroupId: string | null)
   return result;
 }
 
-export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onUpdateGroup, onUpdateNote, onReorderGroups, userId, email }: BacklogBoardProps) {
+export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onUpdateGroup, onUpdateNote, onReorderGroups, userId, email, friendsRevision }: BacklogBoardProps) {
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
   const [mode, setMode] = useState<"personal" | "shared">("personal");
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
@@ -176,7 +177,7 @@ export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGro
       <section className="backlog-view thoughts-view">
         <ThoughtsHeader />
         <BacklogModeSwitch mode={mode} onChange={setMode} />
-        <SharedListsBoard userId={userId} email={email} />
+        <SharedListsBoard userId={userId} email={email} friendsRevision={friendsRevision} />
       </section>
     );
   }
