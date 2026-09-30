@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const isGoogleSignInEnabled = false;
 
@@ -79,6 +80,7 @@ export function AuthGate({ children }: AuthGateProps) {
 function SetupScreen() {
   return (
     <main className="auth-shell">
+      <div className="auth-theme-control"><ThemeToggle /></div>
       <section className="auth-card">
         <span className="section-kicker">Первичная настройка</span>
         <h1>Подключи Supabase</h1>
@@ -142,6 +144,7 @@ function AuthScreen() {
 
   return (
     <main className="auth-shell">
+      <div className="auth-theme-control"><ThemeToggle /></div>
       <form className="auth-card" onSubmit={mode === "forgot-password" ? requestPasswordReset : submit}>
         <span className="section-kicker">Личный ежедневник</span>
         <h1>{mode === "sign-up" ? "Создать аккаунт" : mode === "forgot-password" ? "Восстановить пароль" : "Войти"}</h1>
@@ -202,6 +205,7 @@ function ResetPasswordScreen({ onComplete }: { onComplete: () => void }) {
 
   return (
     <main className="auth-shell">
+      <div className="auth-theme-control"><ThemeToggle /></div>
       <form className="auth-card" onSubmit={submit}>
         <span className="section-kicker">Безопасность аккаунта</span>
         <h1>Новый пароль</h1>

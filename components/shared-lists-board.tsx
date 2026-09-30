@@ -1,10 +1,9 @@
 "use client";
 
-import { type PointerEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cancelSharedListInvitation,
-  createFriendContact,
   createSharedList,
   createSharedListItem,
   deleteSharedList,
@@ -23,6 +22,7 @@ import type { SharedList, SharedListItem, SharedListsData } from "@/lib/types";
 type SharedListsBoardProps = {
   userId: string;
   email: string;
+  friendsRevision: number;
 };
 
 type Confirmation =
@@ -32,7 +32,7 @@ type Confirmation =
 
 const emptyData: SharedListsData = { lists: [], invitations: [], friends: [] };
 
-export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
+export function SharedListsBoard({ userId, email, friendsRevision }: SharedListsBoardProps) {
   const [data, setData] = useState<SharedListsData>(emptyData);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,20 +43,18 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState("");
   const [selectedFriendId, setSelectedFriendId] = useState("");
-  const [friendName, setFriendName] = useState("");
-  const [friendEmail, setFriendEmail] = useState("");
-  const [isAddingFriend, setIsAddingFriend] = useState(false);
   const [isMembersOpen, setIsMembersOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState("");
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const lastFriendsRevision = useRef(friendsRevision);
 
   const selectedList = useMemo(() => data.lists.find((list) => list.id === selectedListId) ?? null, [data.lists, selectedListId]);
 
-  const refresh = useCallback(async (keepListId: string | null = null) => {
-    setIsLoading(true);
+  const refresh = useCallback(async (keepListId: string | null = null, silent = false) => {
+    if (!silent) setIsLoading(true);
     setErrorMessage(null);
     try {
       const next = await loadSharedListsData(userId);
@@ -65,13 +63,19 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Не удалось загрузить общие списки.");
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [userId]);
 
   useEffect(() => {
     void refresh(null);
   }, [refresh]);
+
+  useEffect(() => {
+    if (lastFriendsRevision.current === friendsRevision) return;
+    lastFriendsRevision.current = friendsRevision;
+    void refresh(selectedListId, true);
+  }, [friendsRevision, refresh, selectedListId]);
 
   const run = async (operation: () => Promise<void>, fallbackMessage: string) => {
     setErrorMessage(null);
@@ -149,15 +153,6 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
     setSelectedFriendId("");
     await refresh(selectedList.id);
   }, "Не удалось пригласить друга в список.");
-
-  const submitFriend = () => void run(async () => {
-    if (!friendName.trim() || !friendEmail.trim()) return;
-    await createFriendContact(friendEmail, friendName);
-    setFriendName("");
-    setFriendEmail("");
-    setIsAddingFriend(false);
-    await refresh(selectedList?.id ?? null);
-  }, "Не удалось добавить друга.");
 
   const submitRename = () => void run(async () => {
     if (!selectedList || !renameTitle.trim()) return;
@@ -251,19 +246,7 @@ export function SharedListsBoard({ userId, email }: SharedListsBoardProps) {
 
             {isOwner ? (
               <>
-                <section className="shared-friends-panel">
-                  <div className="shared-friends-panel-heading">
-                    <div className="shared-friends-title"><h4>Друзья</h4><span>{data.friends.length}</span></div>
-                    <button className="mini-button" type="button" onClick={() => setIsAddingFriend((current) => !current)}>{isAddingFriend ? "Закрыть" : "Добавить друга"}</button>
-                  </div>
-                  {isAddingFriend ? <div className="shared-friend-form">
-                    <input className="input" aria-label="Имя друга" placeholder="Имя друга" value={friendName} onChange={(event) => setFriendName(event.target.value)} />
-                    <input className="input" type="email" aria-label="E-mail друга" placeholder="friend@example.com" value={friendEmail} onChange={(event) => setFriendEmail(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submitFriend()} />
-                    <button className="mini-button" type="button" onClick={submitFriend}>Добавить друга</button>
-                  </div> : null}
-
-                </section>
-
+                {!availableFriends.length ? <p className="shared-friends-empty">Друзей можно добавить в настройках.</p> : null}
                 <div className="shared-invite-form shared-friend-invite-form">
                   <select className="input" aria-label="Выбрать друга для приглашения" value={selectedFriendId} onChange={(event) => setSelectedFriendId(event.target.value)} disabled={!availableFriends.length}>
                     <option value="">{availableFriends.length ? "Выбери друга" : "Нет доступных друзей"}</option>

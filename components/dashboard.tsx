@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionForm } from "@/components/action-form";
 import { ActionTable } from "@/components/action-table";
 import { BacklogBoard } from "@/components/backlog-board";
 import { GoalForm } from "@/components/goal-form";
+import { SettingsPanel } from "@/components/settings-panel";
 import { TaskCategoryManager } from "@/components/task-category-manager";
 import { TodayList } from "@/components/today-list";
 import { WeekCalendar } from "@/components/week-calendar";
@@ -315,6 +316,8 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const [currentDate, setCurrentDate] = useState(() => getLocalDateKey());
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [friendsRevision, setFriendsRevision] = useState(0);
   const [editingRecurringTaskId, setEditingRecurringTaskId] = useState<string | null>(null);
   const [editingRecurringSeriesId, setEditingRecurringSeriesId] = useState<string | null>(null);
 
@@ -680,6 +683,8 @@ export function Dashboard({ userId, email }: DashboardProps) {
     await createClient().auth.signOut();
   };
 
+  const closeSettings = useCallback(() => setIsSettingsOpen(false), []);
+
   if (isLoading) {
     return <main className="auth-shell"><p className="auth-status">Загружаем твой ежедневник…</p></main>;
   }
@@ -687,7 +692,9 @@ export function Dashboard({ userId, email }: DashboardProps) {
   return (
     <main className="daily-app">
       <div className="daily-shell">
-        <button className="account-sign-out" type="button" onClick={handleSignOut} title={`Выйти: ${email}`}>Выйти</button>
+        <button className="settings-trigger" type="button" onClick={() => setIsSettingsOpen(true)} aria-label="Открыть настройки" aria-haspopup="dialog" aria-expanded={isSettingsOpen} title="Настройки">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.6 2.9h2.8l.5 2.1c.5.2 1 .4 1.5.7l1.9-1.1 2 2-1.1 1.9c.3.5.5 1 .7 1.5l2.1.5v2.8l-2.1.5c-.2.5-.4 1-.7 1.5l1.1 1.9-2 2-1.9-1.1c-.5.3-1 .5-1.5.7l-.5 2.1h-2.8l-.5-2.1c-.5-.2-1-.4-1.5-.7l-1.9 1.1-2-2 1.1-1.9c-.3-.5-.5-1-.7-1.5l-2.1-.5v-2.8l2.1-.5c.2-.5.4-1 .7-1.5L4.7 6.6l2-2 1.9 1.1c.5-.3 1-.5 1.5-.7l.5-2.1Z" /><circle cx="12" cy="12" r="3" /></svg>
+        </button>
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
@@ -695,7 +702,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} categories={taskCategories} />
           ) : activeSection === "backlog" ? (
-            <BacklogBoard groups={backlogGroups} onMoveNoteToToday={handleMoveNoteToToday} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} />
+            <BacklogBoard groups={backlogGroups} onMoveNoteToToday={handleMoveNoteToToday} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} friendsRevision={friendsRevision} />
           ) : (
             <section className="goals-view">
               <header className="goals-header">
@@ -753,6 +760,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
         ) : null}
         {isRecurringModalOpen ? <RecurringManager actions={actions} onClose={() => setIsRecurringModalOpen(false)} onEditSeries={(seriesId) => { const action = actions.find((item) => item.recurrence?.seriesId === seriesId); if (action) { setIsRecurringModalOpen(false); setEditingRecurringTaskId(action.recurringTaskId ?? createId()); setEditingRecurringSeriesId(seriesId); setEditingId(action.id); setDraft(draftFromAction(action)); setAttachmentFiles([]); setIsModalOpen(true); } }} onDeleteSeries={async (seriesId) => { const seriesActions = actions.filter((action) => action.recurrence?.seriesId === seriesId); await Promise.all(seriesActions.map((action) => deleteAction(action.id))); const recurringTaskId = seriesActions[0]?.recurringTaskId; if (recurringTaskId) await deleteRecurringTask(recurringTaskId); setActions((current) => current.filter((action) => action.recurrence?.seriesId !== seriesId)); }} /> : null}
         {isCategoryManagerOpen ? <TaskCategoryManager categories={taskCategories} onClose={() => setIsCategoryManagerOpen(false)} onCreate={async (title, icon, color) => { const now = new Date().toISOString(); const category = { id: createId(), title, icon, color, position: taskCategories.length, createdAt: now, updatedAt: now }; try { await saveTaskCategory(category, userId); setTaskCategories((current) => [...current, category]); } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Не удалось создать группу."); } }} onUpdate={async (category) => { try { const next = { ...category, updatedAt: new Date().toISOString() }; await saveTaskCategory(next, userId); setTaskCategories((current) => current.map((item) => item.id === next.id ? next : item)); } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить группу."); } }} onDelete={async (id) => { try { await deleteTaskCategory(id); const data = await loadPlannerData(); setActions(normalizeActions(data.actions)); setTaskCategories(data.taskCategories); } catch (error) { setErrorMessage(error instanceof Error ? error.message : "Не удалось удалить группу."); } }} /> : null}
+        {isSettingsOpen ? <SettingsPanel userId={userId} email={email} onClose={closeSettings} onFriendsChange={() => setFriendsRevision((current) => current + 1)} onSignOut={handleSignOut} /> : null}
       </div>
     </main>
   );
