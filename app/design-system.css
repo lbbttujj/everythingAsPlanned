@@ -949,6 +949,7 @@ input[type="checkbox"] {
 
 .today-category-folder,
 .today-category-folder:is(.is-home, .is-shared, .is-personal, .is-work, .is-health) {
+  overflow: visible;
   border: 1px solid color-mix(in srgb, var(--task-category-color, var(--accent)) 38%, var(--line));
   border-left: 3px solid var(--task-category-color, var(--accent));
   border-radius: var(--radius-lg);
@@ -958,6 +959,11 @@ input[type="checkbox"] {
 
 .today-category-folder-header {
   min-height: 36px;
+}
+
+.today-category-folder:has(.todo-item.is-menu-open) {
+  position: relative;
+  z-index: 8;
 }
 
 .today-category-folder-header h3 {
@@ -1008,7 +1014,138 @@ input[type="checkbox"] {
   background: var(--good);
 }
 
-.todo-item.is-important,
+.todo-item {
+  position: relative;
+  min-height: 64px;
+  grid-template-columns: 36px minmax(0, 1fr) 40px;
+  gap: 10px;
+  border-left: 3px solid var(--task-category-color, var(--accent));
+  border-radius: var(--radius-lg);
+  padding: 10px 8px 10px 10px;
+}
+
+.todo-item.is-important {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--line));
+  border-left-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 7%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 18%, transparent), var(--shadow-card);
+}
+
+.todo-copy {
+  display: grid;
+  align-self: center;
+  gap: 4px;
+}
+
+.todo-copy strong {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.todo-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-category {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.todo-date {
+  color: var(--muted);
+  font-size: var(--font-xs);
+  font-weight: 650;
+}
+
+.important-badge {
+  margin-top: 0;
+  border-color: color-mix(in srgb, var(--warn) 36%, var(--line));
+  background: color-mix(in srgb, var(--warn) 13%, var(--surface));
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.todo-actions {
+  position: relative;
+  align-self: center;
+}
+
+.todo-item.is-menu-open {
+  z-index: 10;
+}
+
+.todo-more-button {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.todo-more-button:hover,
+.todo-more-button[aria-expanded="true"] {
+  border-color: var(--line);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.todo-actions-menu {
+  position: absolute;
+  z-index: 12;
+  top: 44px;
+  right: 0;
+  display: grid;
+  min-width: 156px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-floating);
+}
+
+.todo-actions-menu button {
+  min-height: 44px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0 var(--space-3);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-sm);
+  text-align: left;
+}
+
+.todo-actions-menu button:last-child {
+  border-bottom: 0;
+}
+
+.todo-actions-menu button:hover {
+  background: var(--surface-hover);
+}
+
+.todo-actions-menu button.danger {
+  color: var(--danger);
+}
+
 .week-task.is-important {
   border-color: color-mix(in srgb, var(--warn) 42%, var(--line));
   background: color-mix(in srgb, var(--warn) 8%, var(--surface));
@@ -1068,6 +1205,44 @@ input[type="checkbox"] {
 .daily-review-list li strong,
 .thoughts-note-text {
   color: var(--text);
+}
+
+.daily-review-list li.is-menu-open {
+  position: relative;
+  z-index: 10;
+}
+
+.daily-review-item-header,
+.daily-review-item-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.daily-review-item-header {
+  justify-content: space-between;
+}
+
+.daily-review-item-title {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.daily-review-item-title strong {
+  overflow-wrap: anywhere;
+}
+
+.daily-review-item-title .task-category {
+  align-self: center;
+  flex: 0 0 auto;
+  margin-inline-start: var(--space-3);
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.daily-review-item-header > .todo-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .week-day.is-today {

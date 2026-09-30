@@ -9,7 +9,6 @@ type TodayListProps = {
   actions: ActionItem[];
   onSendToReview: (id: string) => void;
   reviewActions: ActionItem[];
-  undatedActions: ActionItem[];
   todayKey: string;
   onSchedule: (id: string, date?: string) => Promise<void>;
   onAdd: () => void;
@@ -23,10 +22,11 @@ function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 }
 
-export function TodayList({ actions, reviewActions, undatedActions, todayKey, onSchedule, onSendToReview, onAdd, onDelete, onEdit, onToggleComplete, categories }: TodayListProps) {
+export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSendToReview, onAdd, onDelete, onEdit, onToggleComplete, categories }: TodayListProps) {
   const activeActions = actions.filter((action) => !action.isCompleted);
   const completedActions = actions.filter((action) => action.isCompleted);
   const [collapsedCategories, setCollapsedCategories] = useState<TaskCategory[]>([]);
+  const [openTaskMenuId, setOpenTaskMenuId] = useState<string | null>(null);
   const activeGroups = [...categories, uncategorizedTaskCategory]
     .map((category) => ({ category, actions: activeActions.filter((action) => getTaskCategory(categories, action.taskCategory).id === category.id) }))
     .filter((group) => group.actions.length > 0);
@@ -34,21 +34,31 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
     const category = getTaskCategory(categories, action.taskCategory);
     return <span className="task-category" style={taskCategoryStyle(category)}><span aria-hidden="true">{category.icon}</span>{category.title}</span>;
   };
-  const renderTask = (action: ActionItem) => (
-    <li className={`todo-item ${action.isImportant ? "is-important" : ""}`} key={action.id}>
+  const renderTask = (action: ActionItem, showCategory = true) => {
+    const category = getTaskCategory(categories, action.taskCategory);
+    const isMenuOpen = openTaskMenuId === action.id;
+
+    return (
+    <li className={`todo-item ${action.isImportant ? "is-important" : ""} ${isMenuOpen ? "is-menu-open" : ""}`} style={taskCategoryStyle(category)} key={action.id}>
       <button className={`todo-check ${action.isCompleted ? "is-completed" : ""}`} type="button" onClick={() => onToggleComplete(action.id)} aria-label={`${action.isCompleted ? "Вернуть" : "Выполнить"} «${action.title}»`}>{action.isCompleted ? "✓" : null}</button>
       <div className="todo-copy">
         <strong>{action.title}</strong>
-        {renderCategory(action)}
-        {action.isImportant ? <span className="important-badge">Важно</span> : null}
+        {showCategory || action.isImportant ? <div className="todo-meta">
+          {showCategory ? renderCategory(action) : null}
+          {action.isImportant ? <span className="important-badge">Важно</span> : null}
+        </div> : null}
       </div>
       <div className="todo-actions">
-        {!action.isCompleted ? <button className="todo-action-button" type="button" onClick={() => onSendToReview(action.id)} aria-label={`В Разобрать: ${action.title}`} title="В Разобрать">↩</button> : null}
-        <button className="todo-action-button" type="button" onClick={() => onEdit(action)} aria-label={`Изменить «${action.title}»`} title="Изменить">✎</button>
-        <button className="todo-action-button danger" type="button" onClick={() => onDelete(action.id)} aria-label={`Удалить «${action.title}»`} title="Удалить">×</button>
+      <button className="todo-more-button" type="button" onClick={() => setOpenTaskMenuId((current) => current === action.id ? null : action.id)} aria-label={`Действия: ${action.title}`} aria-expanded={isMenuOpen} aria-haspopup="menu">⋯</button>
+        {isMenuOpen ? <div className="todo-actions-menu" role="menu" aria-label={`Действия с «${action.title}»`}>
+          {!action.isCompleted ? <button type="button" role="menuitem" onClick={() => { onSendToReview(action.id); setOpenTaskMenuId(null); }}>В «Разобрать»</button> : null}
+          <button type="button" role="menuitem" onClick={() => { onEdit(action); setOpenTaskMenuId(null); }}>Изменить</button>
+          <button className="danger" type="button" role="menuitem" onClick={() => { onDelete(action.id); setOpenTaskMenuId(null); }}>Удалить</button>
+        </div> : null}
       </div>
     </li>
-  );
+    );
+  };
 
   return (
     <section className="today-view">
@@ -83,7 +93,7 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
                   <i aria-hidden="true" />
                 </button>
                 {!collapsedCategories.includes(category.id) ? <ul className="todo-list">
-                  {categoryActions.map(renderTask)}
+                  {categoryActions.map((action) => renderTask(action, false))}
                 </ul> : null}
               </section>
             ))}
@@ -98,29 +108,33 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
         )}
       </section>
 
-      <details className="daily-review" aria-label="Без даты">
-        <summary>Без даты<span>{undatedActions.filter((action) => !action.isCompleted).length}</span></summary>
-        {undatedActions.length ? <>
-          <ul className="todo-list">{undatedActions.filter((action) => !action.isCompleted).map(renderTask)}</ul>
-          <ul className="todo-list is-completed">{undatedActions.filter((action) => action.isCompleted).map(renderTask)}</ul>
-        </> : <p>Здесь пока нет дел.</p>}
-      </details>
-
       {[{ title: "Разобрать", items: reviewActions }].map(({ title, items }) => (
         <details className="daily-review" key={title}>
           <summary>{title}<span>{items.length}</span></summary>
           {items.length ? <ul className="daily-review-list">
-            {items.map((action) => <li key={action.id}>
-              <strong>{action.title}</strong>
-              {renderCategory(action)}
+            {items.map((action) => {
+              const isMenuOpen = openTaskMenuId === action.id;
+
+              return <li key={action.id} className={isMenuOpen ? "is-menu-open" : ""}>
+              <div className="daily-review-item-header">
+                <div className="daily-review-item-title">
+                  <strong>{action.title}</strong>
+                  {renderCategory(action)}
+                </div>
+                <div className="todo-actions">
+                  <button className="todo-more-button" type="button" onClick={() => setOpenTaskMenuId((current) => current === action.id ? null : action.id)} aria-label={`Действия: ${action.title}`} aria-expanded={isMenuOpen} aria-haspopup="menu">⋯</button>
+                  {isMenuOpen ? <div className="todo-actions-menu" role="menu" aria-label={`Действия с «${action.title}»`}>
+                    <button type="button" role="menuitem" onClick={() => { onEdit(action); setOpenTaskMenuId(null); }}>Изменить</button>
+                    <button className="danger" type="button" role="menuitem" onClick={() => { onDelete(action.id); setOpenTaskMenuId(null); }}>Удалить</button>
+                  </div> : null}
+                </div>
+              </div>
               <div className="daily-review-actions">
                 <button className="mini-button" type="button" onClick={() => void onSchedule(action.id, todayKey)}>На сегодня</button>
                 <label>На дату<input aria-label={`Назначить дату для «${action.title}»`} type="date" min={todayKey} value="" onChange={(event) => { if (event.target.value) void onSchedule(action.id, event.target.value); }} /></label>
-                {title === "Разобрать" ? <button className="mini-button" type="button" onClick={() => void onSchedule(action.id)}>Без даты</button> : null}
-                {title === "Без даты" ? <button className="mini-button" type="button" onClick={() => onSendToReview(action.id)}>В Разобрать</button> : null}
-                <button className="mini-button" type="button" onClick={() => onDelete(action.id)}>Удалить</button>
               </div>
-            </li>)}
+            </li>;
+            })}
           </ul> : <p>Здесь пока нет дел.</p>}
         </details>
       ))}

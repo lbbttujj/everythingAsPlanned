@@ -371,9 +371,8 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const visibleGoals = useMemo(() => visibleActions.filter((action) => action.kind === "goal"), [visibleActions]);
   const todayKey = currentDate;
   const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc").sort((left, right) => Number(Boolean(right.isImportant)) - Number(Boolean(left.isImportant)) || left.order - right.order), [actions]);
-  const todayActions = useMemo(() => actActions.filter((action) => !action.needsReview && (action.scheduledFor === todayKey || (action.isOngoing && !action.isCompleted && !!action.scheduledFor && action.scheduledFor < todayKey))), [actActions, todayKey]);
+  const todayActions = useMemo(() => actActions.filter((action) => !action.needsReview && (!action.scheduledFor || action.scheduledFor === todayKey || (action.isOngoing && !action.isCompleted && action.scheduledFor < todayKey))), [actActions, todayKey]);
   const reviewActions = actActions.filter((action) => !action.isCompleted && action.needsReview);
-  const undatedActions = actActions.filter((action) => !action.needsReview && !action.scheduledFor);
 
   const closeActionModal = () => {
     if (isModalClosing) return;
@@ -698,7 +697,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
-            <TodayList actions={todayActions} reviewActions={reviewActions} undatedActions={undatedActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act")} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} />
+            <TodayList actions={todayActions} reviewActions={reviewActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act")} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} />
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} categories={taskCategories} />
           ) : activeSection === "backlog" ? (
