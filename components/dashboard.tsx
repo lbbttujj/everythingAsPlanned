@@ -11,7 +11,7 @@ import { TodayList } from "@/components/today-list";
 import { WeekCalendar } from "@/components/week-calendar";
 import { moveBacklogNoteToToday } from "@/lib/planner-repository";
 import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentComplete } from "@/lib/goal-assessment";
-import { deleteAction, deleteBacklogGroup, deleteBacklogNote, deleteRecurringTask, deleteTaskCategory, loadPlannerData, migrateLegacyLocalData, saveAction, saveBacklogGroup, saveBacklogNote, saveRecurringTask, saveTaskCategory, uploadActionAttachments, uploadBacklogNoteAttachments } from "@/lib/planner-repository";
+import { deleteAction, deleteBacklogGroup, deleteBacklogNote, deleteRecurringTask, deleteTaskCategory, loadPlannerData, migrateLegacyLocalData, rolloverOngoingActions, saveAction, saveBacklogGroup, saveBacklogNote, saveRecurringTask, saveTaskCategory, uploadActionAttachments, uploadBacklogNoteAttachments } from "@/lib/planner-repository";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
 import { getLocalDateKey } from "@/lib/schedule";
 import { recurrenceDates } from "@/lib/recurrence";
@@ -43,6 +43,7 @@ const defaultActDraft: ActDraft = {
   status: "new",
   taskCategory: "",
   isImportant: false,
+  isOngoing: true,
   recurrence: null,
   scheduledFor: ""
 };
@@ -152,6 +153,7 @@ function buildActionFromDraft(draft: ActionDraft, existing: ActionItem | null, o
     status: draft.status,
     taskCategory: draft.taskCategory,
     isImportant: draft.isImportant,
+    isOngoing: draft.isOngoing && !draft.recurrence,
     needsReview: existing?.needsReview && draft.scheduledFor === existing.scheduledFor,
     rolloverCount: (existing?.rolloverCount ?? 0) + (existing?.scheduledFor && draft.scheduledFor && draft.scheduledFor > existing.scheduledFor ? 1 : 0),
     recurrence: draft.recurrence,
@@ -203,6 +205,7 @@ function draftFromAction(action: ActionItem): ActionDraft {
     status: action.status,
     taskCategory: action.taskCategory ?? "",
     isImportant: action.isImportant ?? false,
+    isOngoing: action.isOngoing ?? false,
     recurrence: action.recurrence ?? null,
     scheduledFor: action.scheduledFor ?? ""
   };
@@ -320,6 +323,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
       setIsLoading(true);
       setErrorMessage(null);
       try {
+        await rolloverOngoingActions(getLocalDateKey());
         let data = await loadPlannerData();
         const migrated = await migrateLegacyLocalData(userId);
         if (migrated) data = await loadPlannerData();
@@ -342,14 +346,29 @@ export function Dashboard({ userId, email }: DashboardProps) {
       setCurrentDate((date) => date === nextDate ? date : nextDate);
     }, 60_000);
 
-    return () => window.clearInterval(timer);
+    const refreshDate = () => setCurrentDate(getLocalDateKey());
+    window.addEventListener("focus", refreshDate);
+    document.addEventListener("visibilitychange", refreshDate);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshDate);
+      document.removeEventListener("visibilitychange", refreshDate);
+    };
   }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    void rolloverOngoingActions(currentDate).then((ids) => {
+      if (ids.size) setActions((current) => current.map((action) => ids.has(action.id) && !action.isCompleted && !action.needsReview && action.isOngoing && action.scheduledFor && action.scheduledFor < currentDate ? { ...action, scheduledFor: currentDate } : action));
+    }).catch((error) => setErrorMessage(getDataErrorMessage(error)));
+  }, [currentDate, isLoading]);
 
   const visibleActions = useMemo(() => sortActions(actions, sortKey, sortDirection), [actions, sortKey, sortDirection]);
   const visibleGoals = useMemo(() => visibleActions.filter((action) => action.kind === "goal"), [visibleActions]);
   const todayKey = currentDate;
   const actActions = useMemo(() => sortActions(actions.filter((action) => action.kind === "act"), "manual", "asc").sort((left, right) => Number(Boolean(right.isImportant)) - Number(Boolean(left.isImportant)) || left.order - right.order), [actions]);
-  const todayActions = useMemo(() => actActions.filter((action) => !action.needsReview && action.scheduledFor === todayKey), [actActions, todayKey]);
+  const todayActions = useMemo(() => actActions.filter((action) => !action.needsReview && (action.scheduledFor === todayKey || (action.isOngoing && !action.isCompleted && !!action.scheduledFor && action.scheduledFor < todayKey))), [actActions, todayKey]);
   const reviewActions = actActions.filter((action) => !action.isCompleted && action.needsReview);
   const undatedActions = actActions.filter((action) => !action.needsReview && !action.scheduledFor);
 
@@ -402,6 +421,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           id: createId(),
           recurrence,
           recurringTaskId: editingRecurringTaskId,
+          isOngoing: false,
           scheduledFor,
           order: normalized.length + index,
           isCompleted: false
@@ -414,7 +434,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
         const recurringTask = !existing && next.kind === "act" && recurrence ? createRecurringTask(next, recurrence, recurrence.seriesId) : null;
         const recurringDates = !existing && next.kind === "act" && recurrence ? recurrenceDates(recurrence, next.scheduledFor ?? currentDate) : [];
         const scheduledActions = recurringDates.length
-          ? recurringDates.map((scheduledFor, index) => ({ ...next, id: index === 0 ? next.id : createId(), recurrence, recurringTaskId: recurringTask?.id ?? null, scheduledFor, order: normalized.length + index }))
+          ? recurringDates.map((scheduledFor, index) => ({ ...next, id: index === 0 ? next.id : createId(), recurrence, recurringTaskId: recurringTask?.id ?? null, isOngoing: false, scheduledFor, order: normalized.length + index }))
           : [{ ...next, recurrence }];
         if (recurringTask) await saveRecurringTask(recurringTask, userId);
         await Promise.all(scheduledActions.map((action) => saveAction(action, userId)));
@@ -469,7 +489,8 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const handleToggleComplete = async (id: string) => {
     const action = actions.find((item) => item.id === id);
     if (!action) return;
-    const next = { ...action, isCompleted: !action.isCompleted, updatedAt: new Date().toISOString() };
+    const today = getLocalDateKey();
+    const next = { ...action, isCompleted: !action.isCompleted, scheduledFor: action.isCompleted && action.isOngoing && action.scheduledFor && action.scheduledFor < today ? today : action.scheduledFor, updatedAt: new Date().toISOString() };
     try {
       await saveAction(next, userId);
       setActions((current) => current.map((item) => item.id === id ? next : item));
@@ -484,6 +505,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
     const next = {
       ...action,
       scheduledFor,
+      isOngoing: false,
       needsReview: false,
       rolloverCount: (action.rolloverCount ?? 0) + (action.scheduledFor && scheduledFor && scheduledFor > action.scheduledFor ? 1 : 0),
       updatedAt: new Date().toISOString(),
@@ -627,7 +649,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
     closeActionModal();
   };
 
-  const handleAddClick = (kind: "goal" | "act", scheduledFor = getLocalDateKey()) => {
+  const handleAddClick = (kind: "goal" | "act", scheduledFor?: string) => {
     if (modalCloseTimer.current) window.clearTimeout(modalCloseTimer.current);
     setIsModalClosing(false);
     setIsModalPresented(false);
@@ -639,7 +661,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
     } else {
       const actDraft = cloneDraft(defaultActDraft);
       if (actDraft.kind === "act") {
-        setDraft({ ...actDraft, scheduledFor, taskCategory: taskCategories[0]?.id ?? "" });
+        setDraft({ ...actDraft, scheduledFor: scheduledFor ?? getLocalDateKey(), isOngoing: !scheduledFor });
       }
     }
     setIsModalOpen(true);
@@ -669,7 +691,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
-            <TodayList actions={todayActions} reviewActions={reviewActions} undatedActions={undatedActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act", todayKey)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} onManageCategories={() => setIsCategoryManagerOpen(true)} />
+            <TodayList actions={todayActions} reviewActions={reviewActions} undatedActions={undatedActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act")} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} onManageCategories={() => setIsCategoryManagerOpen(true)} />
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} categories={taskCategories} />
           ) : activeSection === "backlog" ? (
@@ -700,7 +722,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           <button className={`bottom-nav-item ${activeSection === "week" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("week")} aria-current={activeSection === "week" ? "page" : undefined}>
             <span>Неделя</span>
           </button>
-          <button className="bottom-nav-add" type="button" onClick={() => handleAddClick("act", todayKey)} aria-label="Добавить дело">
+          <button className="bottom-nav-add" type="button" onClick={() => handleAddClick("act")} aria-label="Добавить дело">
             <span aria-hidden="true">+</span>
           </button>
           <button className={`bottom-nav-item ${activeSection === "backlog" ? "is-active" : ""}`} type="button" onClick={() => setActiveSection("backlog")} aria-current={activeSection === "backlog" ? "page" : undefined}>

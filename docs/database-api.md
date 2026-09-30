@@ -8,7 +8,7 @@ Supabase хранит пользовательские данные ежедне
 
 ### `planner_items`
 
-Цели и дела пользователя. Поля: `id` (UUID), `user_id` (владелец из `auth.users`), `kind` (`goal` или `act`), `title`, `details`, `values` (JSON-массив ценностей), `consequences`, `answers`, `goal_assessment` (JSON), `score`, `status`, `is_important`, `is_completed`, `scheduled_for`, `position`, `created_at`, `updated_at`. Важные дела выводятся первыми в списках дня и недели.
+Цели и дела пользователя. Поля: `id` (UUID), `user_id` (владелец из `auth.users`), `kind` (`goal` или `act`), `title`, `details`, `values` (JSON-массив ценностей), `consequences`, `answers`, `goal_assessment` (JSON), `score`, `status`, `is_important`, `is_ongoing`, `is_completed`, `scheduled_for`, `position`, `created_at`, `updated_at`. Важные дела выводятся первыми в списках дня и недели. `is_ongoing = true` допустимо только для разового дела: незавершённое дело с прошедшей датой переносится на текущий день при открытии приложения или смене дня. Старые записи остаются привязанными к своим датам.
 
 ### `backlog_groups` — группы «Мыслей»
 
@@ -26,6 +26,7 @@ Supabase хранит пользовательские данные ежедне
 
 - `loadPlannerData()` — загружает записи, группы и заметки текущего пользователя.
 - `saveAction(item)` / `deleteAction(id)` — создаёт, обновляет или удаляет цель/дело.
+- `rolloverOngoingActions(today)` — обновляет дату только у незавершённых бессрочных дел текущего пользователя, если она уже прошла. Регулярные экземпляры и дела на конкретную дату не затрагиваются.
 - `saveBacklogGroup(group)` — создаёт, переименовывает, перемещает и меняет иконку группы.
 - `deleteBacklogGroup(id, noteIds)` — удаляет файлы записей через Storage API, затем удаляет всё дерево группы каскадом.
 - `saveBacklogNote(note)` / `deleteBacklogNote(id)` — создаёт, редактирует и удаляет запись.

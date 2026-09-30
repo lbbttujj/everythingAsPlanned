@@ -14,6 +14,7 @@ type PlannerItemRow = {
   status: ActionItem["status"];
   task_category: TaskCategory | null;
   is_important: boolean;
+  is_ongoing: boolean;
   rollover_count: number;
   needs_review: boolean;
   recurrence: ActionItem["recurrence"];
@@ -80,6 +81,7 @@ function toAction(row: PlannerItemRow, attachments: AttachmentRow[]): ActionItem
     status: row.status,
     taskCategory: row.task_category ?? "",
     isImportant: row.is_important,
+    isOngoing: row.is_ongoing ?? false,
     rolloverCount: row.rollover_count,
     needsReview: row.needs_review,
     recurrence: row.recurrence,
@@ -108,6 +110,7 @@ function toActionRow(item: ActionItem, userId: string) {
     status: item.status,
     task_category: item.taskCategory || null,
     is_important: item.isImportant ?? false,
+    is_ongoing: item.isOngoing ?? false,
     rollover_count: item.rolloverCount ?? 0,
     needs_review: item.needsReview ?? false,
     recurrence: item.recurrence ?? null,
@@ -185,6 +188,19 @@ export async function deleteTaskCategory(id: string) {
 export async function saveAction(item: ActionItem, userId: string) {
   const { error } = await createClient().from("planner_items").upsert(toActionRow(item, userId));
   throwIfError(error);
+}
+
+export async function rolloverOngoingActions(today: string) {
+  const { data, error } = await createClient().from("planner_items")
+    .update({ scheduled_for: today })
+    .eq("kind", "act")
+    .eq("is_ongoing", true)
+    .eq("is_completed", false)
+    .eq("needs_review", false)
+    .lt("scheduled_for", today)
+    .select("id");
+  throwIfError(error);
+  return new Set((data ?? []).map((item) => item.id as string));
 }
 
 function toRecurringTaskRow(task: RecurringTask, userId: string) {

@@ -31,6 +31,7 @@ export function createActionFromDraft(
     score: calculateActScore(draft),
     status: draft.status,
     taskCategory: draft.taskCategory,
+    isOngoing: draft.isOngoing,
     scheduledFor: draft.scheduledFor,
     order,
     createdAt,

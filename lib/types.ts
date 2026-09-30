@@ -64,6 +64,7 @@ export type ActionItem = {
   status: ActionStatus;
   taskCategory?: TaskCategory;
   isImportant?: boolean;
+  isOngoing?: boolean;
   rolloverCount?: number;
   needsReview?: boolean;
   recurrence?: Recurrence | null;
@@ -110,6 +111,7 @@ export type ActDraft = {
   status: ActionStatus;
   taskCategory: TaskCategory;
   isImportant: boolean;
+  isOngoing: boolean;
   recurrence: Recurrence | null;
   scheduledFor: string;
 };

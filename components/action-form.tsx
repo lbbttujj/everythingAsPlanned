@@ -1,6 +1,7 @@
 "use client";
 
 import type { ActDraft, TaskCategoryDefinition } from "@/lib/types";
+import { getLocalDateKey } from "@/lib/schedule";
 
 type ActionFormProps = {
   draft: ActDraft;
@@ -47,9 +48,17 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
 
         <div className="action-sheet-settings">
           <label className="action-setting-row">
-            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">▣</span>Дата</span>
-            <span className="action-date-control"><span>{formattedDate || "Сегодня"}</span><input aria-label="Дата дела" type="date" value={draft.scheduledFor} onChange={(event) => onDraftChange({ ...draft, scheduledFor: event.target.value })} /></span>
+            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">▣</span>Срок</span>
+            <select className="action-inline-select" aria-label="Срок дела" value={draft.isOngoing && !recurrence ? "ongoing" : "date"} onChange={(event) => { const isOngoing = event.target.value === "ongoing"; onDraftChange({ ...draft, isOngoing, recurrence: isOngoing ? null : draft.recurrence, scheduledFor: isOngoing ? getLocalDateKey() : draft.scheduledFor || getLocalDateKey() }); }}>
+              <option value="ongoing">Бессрочно</option>
+              <option value="date">На дату</option>
+            </select>
           </label>
+
+          {!draft.isOngoing || recurrence ? <label className="action-setting-row">
+            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">▣</span>Дата</span>
+            <span className="action-date-control"><span>{formattedDate || "Сегодня"}</span><input aria-label="Дата дела" type="date" value={draft.scheduledFor} onChange={(event) => onDraftChange({ ...draft, isOngoing: false, scheduledFor: event.target.value })} /></span>
+          </label> : null}
 
           <label className="action-setting-row">
             <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">◌</span>Группа</span>
@@ -66,7 +75,7 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
 
           <label className="action-setting-row">
             <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">↻</span>Регулярность</span>
-            <select className="action-inline-select" value={recurrence?.frequency ?? "none"} onChange={(event) => onDraftChange({ ...draft, recurrence: event.target.value === "none" ? null : { frequency: event.target.value as "weekly" | "monthly", days: [1], endDate: oneYearFromToday(), endMode: "always" } })}>
+            <select className="action-inline-select" value={recurrence?.frequency ?? "none"} onChange={(event) => onDraftChange({ ...draft, isOngoing: event.target.value === "none" ? draft.isOngoing : false, recurrence: event.target.value === "none" ? null : { frequency: event.target.value as "weekly" | "monthly", days: [1], endDate: oneYearFromToday(), endMode: "always" } })}>
               <option value="none">Нет</option>
               <option value="weekly">Каждую неделю</option>
               <option value="monthly">Каждый месяц</option>
