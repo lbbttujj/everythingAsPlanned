@@ -517,6 +517,37 @@ body {
   background: var(--accent-soft);
 }
 
+.settings-manage-categories {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--control);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-sm);
+  font-weight: 680;
+  text-align: left;
+}
+
+.settings-manage-categories:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+.settings-manage-categories span {
+  color: var(--accent);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
+}
+
 .settings-friend-form,
 .settings-friend-form label {
   display: grid;
@@ -891,7 +922,7 @@ input[type="checkbox"] {
 .todo-item,
 .week-day,
 .thoughts-tile,
-.shared-list-cards > button,
+.shared-list-card-open,
 .shared-items > li,
 .shared-members-panel,
 .card,
@@ -909,7 +940,7 @@ input[type="checkbox"] {
 
 .todo-item:hover,
 .thoughts-tile:hover,
-.shared-list-cards > button:hover {
+.shared-list-card-open:hover {
   border-color: var(--line-strong);
   background: var(--surface-hover);
   box-shadow: var(--shadow-card);
@@ -1025,6 +1056,18 @@ input[type="checkbox"] {
 .shared-members-panel li,
 .shared-pending-list > div {
   border-color: var(--line);
+}
+
+.daily-review-list li,
+.thoughts-notes > li {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+}
+
+.daily-review-list li strong,
+.thoughts-note-text {
+  color: var(--text);
 }
 
 .week-day.is-today {

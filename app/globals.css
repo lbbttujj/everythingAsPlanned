@@ -2783,8 +2783,13 @@ button {
   gap: 10px;
 }
 
-.shared-list-cards > button {
+.shared-list-card {
+  position: relative;
+}
+
+.shared-list-card-open {
   display: grid;
+  width: 100%;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 3px 12px;
@@ -2797,10 +2802,47 @@ button {
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
-.shared-list-cards > button:hover {
+.shared-list-card-open:hover {
   border-color: rgba(124, 156, 255, 0.42);
   background: rgba(124, 156, 255, 0.08);
   transform: translateY(-1px);
+}
+
+.shared-list-card-delete {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.shared-list-card-delete:hover,
+.shared-list-card-delete:focus-visible {
+  background: var(--accent-soft);
+  color: var(--danger);
+}
+
+.shared-list-card-delete svg {
+  width: 19px;
+  height: 19px;
+}
+
+.shared-list-card:has(.shared-list-card-delete) .shared-list-card-open {
+  padding-right: 60px;
+}
+
+.shared-list-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .shared-list-card-icon {
@@ -3850,7 +3892,7 @@ select {
 
 .todo-item,
 .panel,
-.shared-list-cards > button,
+.shared-list-card-open,
 .backlog-group,
 .goal-card {
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
@@ -3879,7 +3921,7 @@ select {
   .action-date-control,
   .todo-item,
   .panel,
-  .shared-list-cards > button,
+  .shared-list-card-open,
   .backlog-group,
   .goal-card {
     transition: none !important;
@@ -3960,7 +4002,7 @@ select {
 .todo-item,
 .week-day,
 .backlog-group,
-.shared-list-cards > button,
+.shared-list-card-open,
 .shared-items > li,
 .shared-members-panel,
 .card,
@@ -3975,7 +4017,7 @@ select {
 }
 
 .todo-item:hover,
-.shared-list-cards > button:hover {
+.shared-list-card-open:hover {
   border-color: rgba(91, 92, 226, 0.35);
   background: #ffffff;
   box-shadow: 0 14px 30px rgba(43, 48, 82, 0.08);

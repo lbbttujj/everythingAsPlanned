@@ -17,14 +17,13 @@ type TodayListProps = {
   onEdit: (action: ActionItem) => void;
   onToggleComplete: (id: string) => void;
   categories: TaskCategoryDefinition[];
-  onManageCategories: () => void;
 };
 
 function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 }
 
-export function TodayList({ actions, reviewActions, undatedActions, todayKey, onSchedule, onSendToReview, onAdd, onDelete, onEdit, onToggleComplete, categories, onManageCategories }: TodayListProps) {
+export function TodayList({ actions, reviewActions, undatedActions, todayKey, onSchedule, onSendToReview, onAdd, onDelete, onEdit, onToggleComplete, categories }: TodayListProps) {
   const activeActions = actions.filter((action) => !action.isCompleted);
   const completedActions = actions.filter((action) => action.isCompleted);
   const [collapsedCategories, setCollapsedCategories] = useState<TaskCategory[]>([]);
@@ -58,7 +57,6 @@ export function TodayList({ actions, reviewActions, undatedActions, todayKey, on
           <h1>Сегодня</h1>
           <p suppressHydrationWarning>{todayLabel()}</p>
         </div>
-        <button className="mini-button" type="button" onClick={onManageCategories}>Группы</button>
       </header>
 
       <button className="today-quick-add" type="button" onClick={onAdd}>

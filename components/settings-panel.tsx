@@ -11,10 +11,11 @@ type SettingsPanelProps = {
   email: string;
   onClose: () => void;
   onFriendsChange: () => void;
+  onManageCategories: () => void;
   onSignOut: () => Promise<void>;
 };
 
-export function SettingsPanel({ userId, email, onClose, onFriendsChange, onSignOut }: SettingsPanelProps) {
+export function SettingsPanel({ userId, email, onClose, onFriendsChange, onManageCategories, onSignOut }: SettingsPanelProps) {
   const [friends, setFriends] = useState<FriendContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
@@ -33,6 +34,15 @@ export function SettingsPanel({ userId, email, onClose, onFriendsChange, onSignO
     setIsClosing(true);
     closeTimer.current = window.setTimeout(onClose, 280);
   }, [onClose]);
+
+  const openCategoryManager = () => {
+    if (closeTimer.current !== null) return;
+    setIsClosing(true);
+    closeTimer.current = window.setTimeout(() => {
+      onClose();
+      onManageCategories();
+    }, 280);
+  };
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -138,6 +148,11 @@ export function SettingsPanel({ userId, email, onClose, onFriendsChange, onSignO
               <div><strong>Ваш профиль</strong><small>{email}</small></div>
             </div>
             <div className="settings-future"><span>Скоро</span><p>Здесь появятся управление профилем и безопасностью аккаунта.</p></div>
+          </section>
+
+          <section className="settings-section" aria-labelledby="settings-tasks-title">
+            <div className="settings-section-heading"><div><h3 id="settings-tasks-title">Дела</h3><p>Создавай группы, выбирай для них цвет и иконку.</p></div></div>
+            <button className="settings-manage-categories" type="button" onClick={openCategoryManager}>Управлять группами дел <span aria-hidden="true">›</span></button>
           </section>
 
           <section className="settings-section" aria-labelledby="settings-friends-title" aria-busy={isLoading || isBusy}>

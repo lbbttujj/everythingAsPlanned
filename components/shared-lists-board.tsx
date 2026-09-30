@@ -49,6 +49,8 @@ export function SharedListsBoard({ userId, email, friendsRevision }: SharedLists
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [confirmationError, setConfirmationError] = useState<string | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
   const lastFriendsRevision = useRef(friendsRevision);
 
   const selectedList = useMemo(() => data.lists.find((list) => list.id === selectedListId) ?? null, [data.lists, selectedListId]);
@@ -161,18 +163,26 @@ export function SharedListsBoard({ userId, email, friendsRevision }: SharedLists
     setIsRenaming(false);
   }, "Не удалось переименовать список.");
 
-  const confirmAction = () => void run(async () => {
-    if (!confirmation) return;
-    if (confirmation.kind === "delete-list") {
-      await deleteSharedList(confirmation.listId);
-    } else if (confirmation.kind === "leave-list") {
-      await leaveSharedList(confirmation.listId);
-    } else {
-      await removeSharedListMember(confirmation.listId, confirmation.userId);
+  const confirmAction = async () => {
+    if (!confirmation || isConfirming) return;
+    setIsConfirming(true);
+    setConfirmationError(null);
+    try {
+      if (confirmation.kind === "delete-list") {
+        await deleteSharedList(confirmation.listId);
+      } else if (confirmation.kind === "leave-list") {
+        await leaveSharedList(confirmation.listId);
+      } else {
+        await removeSharedListMember(confirmation.listId, confirmation.userId);
+      }
+      setConfirmation(null);
+      await refresh(null);
+    } catch (error) {
+      setConfirmationError(error instanceof Error ? error.message : "Не удалось выполнить действие.");
+    } finally {
+      setIsConfirming(false);
     }
-    setConfirmation(null);
-    await refresh(null);
-  }, "Не удалось выполнить действие.");
+  };
 
   const clearDragState = () => {
     setDraggedItemId(null);
@@ -227,7 +237,10 @@ export function SharedListsBoard({ userId, email, friendsRevision }: SharedLists
             ) : <h2>{selectedList.title}</h2>}
             <p>{activeMembers.length} участник{activeMembers.length === 1 ? "" : "а"} · {selectedList.items.length} пунктов</p>
           </div>
-          <button className="mini-button" type="button" onClick={() => setIsMembersOpen((current) => !current)} aria-expanded={isMembersOpen}>Участники</button>
+          <div className="shared-list-header-actions">
+            <button className="mini-button" type="button" onClick={() => setIsMembersOpen((current) => !current)} aria-expanded={isMembersOpen}>Участники</button>
+            {isOwner ? <button className="mini-button danger" type="button" onClick={() => setConfirmation({ kind: "delete-list", listId: selectedList.id, title: selectedList.title })}>Удалить список</button> : null}
+          </div>
         </header>
 
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
@@ -264,7 +277,6 @@ export function SharedListsBoard({ userId, email, friendsRevision }: SharedLists
                 ) : null}
                 <div className="shared-owner-actions">
                   <button className="mini-button" type="button" onClick={() => { setRenameTitle(selectedList.title); setIsRenaming(true); }}>Переименовать</button>
-                  <button className="mini-button danger" type="button" onClick={() => setConfirmation({ kind: "delete-list", listId: selectedList.id, title: selectedList.title })}>Удалить список</button>
                 </div>
               </>
             ) : <button className="mini-button danger shared-leave-button" type="button" onClick={() => setConfirmation({ kind: "leave-list", listId: selectedList.id, title: selectedList.title })}>Выйти из списка</button>}
@@ -313,7 +325,7 @@ export function SharedListsBoard({ userId, email, friendsRevision }: SharedLists
           </ul>
         ) : <p className="shared-empty">Список пока пуст. Добавьте первый общий пункт.</p>}
 
-        {confirmation ? <ConfirmationDialog confirmation={confirmation} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} /> : null}
+        {confirmation ? <ConfirmationDialog confirmation={confirmation} error={confirmationError} isConfirming={isConfirming} onCancel={() => { setConfirmation(null); setConfirmationError(null); }} onConfirm={() => void confirmAction()} /> : null}
       </section>
     );
   }
@@ -351,7 +363,10 @@ export function SharedListsBoard({ userId, email, friendsRevision }: SharedLists
           {data.lists.map((list) => {
             const activeMembers = list.members.filter((member) => member.isActive).length;
             const openItems = list.items.filter((item) => !item.isCompleted).length;
-            return <button type="button" key={list.id} onClick={() => setSelectedListId(list.id)}><span className="shared-list-card-icon">↗</span><strong>{list.title}</strong><small>{activeMembers} участника · {openItems} активных</small></button>;
+            return <div className="shared-list-card" key={list.id}>
+              <button className="shared-list-card-open" type="button" onClick={() => setSelectedListId(list.id)}><span className="shared-list-card-icon">↗</span><strong>{list.title}</strong><small>{activeMembers} участника · {openItems} активных</small></button>
+              {list.ownerId === userId ? <button className="shared-list-card-delete" type="button" onClick={() => setConfirmation({ kind: "delete-list", listId: list.id, title: list.title })} aria-label={`Удалить список «${list.title}»`} title="Удалить список"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 4h4M6 7l1 13h10l1-13M10 11v5m4-5v5" /></svg></button> : null}
+            </div>;
           })}
         </div>
       ) : (
@@ -359,12 +374,13 @@ export function SharedListsBoard({ userId, email, friendsRevision }: SharedLists
       )}
 
       <p className="shared-account-note">Приглашения для аккаунта {email}</p>
+      {confirmation ? <ConfirmationDialog confirmation={confirmation} error={confirmationError} isConfirming={isConfirming} onCancel={() => { setConfirmation(null); setConfirmationError(null); }} onConfirm={() => void confirmAction()} /> : null}
     </section>
   );
 }
 
-function ConfirmationDialog({ confirmation, onCancel, onConfirm }: { confirmation: Confirmation; onCancel: () => void; onConfirm: () => void }) {
+function ConfirmationDialog({ confirmation, error, isConfirming, onCancel, onConfirm }: { confirmation: Confirmation; error: string | null; isConfirming: boolean; onCancel: () => void; onConfirm: () => void }) {
   const title = confirmation.kind === "delete-list" ? `Удалить «${confirmation.title}»?` : confirmation.kind === "leave-list" ? `Выйти из «${confirmation.title}»?` : `Исключить ${confirmation.email}?`;
   const text = confirmation.kind === "delete-list" ? "Список, участники и все пункты будут удалены без возможности восстановления." : confirmation.kind === "leave-list" ? "Список исчезнет из раздела «Мысли», пока владелец не пригласит вас снова." : "Пользователь сразу потеряет доступ к списку.";
-  return <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}><section className="modal-dialog backlog-delete-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><span className="section-kicker">Подтверждение</span><h2>{title}</h2><p>{text}</p><div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={onCancel}>Отмена</button><button className="button danger-button" type="button" onClick={onConfirm}>Подтвердить</button></div></section></div>;
+  return <div className="modal-backdrop" role="presentation" onMouseDown={isConfirming ? undefined : onCancel}><section className="modal-dialog backlog-delete-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><span className="section-kicker">Подтверждение</span><h2>{title}</h2><p>{text}</p>{error ? <p className="data-error" role="alert">{error}</p> : null}<div className="toolbar toolbar-actions"><button className="button secondary" type="button" onClick={onCancel} disabled={isConfirming}>Отмена</button><button className="button danger-button" type="button" onClick={onConfirm} disabled={isConfirming}>{isConfirming ? "Удаляем…" : "Подтвердить"}</button></div></section></div>;
 }
