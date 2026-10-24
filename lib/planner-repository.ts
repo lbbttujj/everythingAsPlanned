@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { validateAttachmentFiles } from "@/lib/task-attachments";
 import type { ActionItem, Attachment, BacklogGroup, BacklogNote, RecurringTask, TaskCategory, TaskCategoryDefinition } from "@/lib/types";
 
 type PlannerItemRow = {
@@ -279,30 +280,39 @@ function createAttachmentId() {
 }
 
 async function uploadAttachments(files: File[], userId: string, parent: { plannerItemId?: string; backlogNoteId?: string }) {
-  for (const file of files) {
-    if (file.size > 6 * 1024 * 1024) throw new Error(`Файл «${file.name}» больше 6 МБ.`);
+  const validationError = validateAttachmentFiles(files);
+  if (validationError) throw new Error(validationError);
+  const supabase = createClient();
+  const uploaded: { id: string; path: string }[] = [];
+  try {
+    for (const file of files) {
+      const id = createAttachmentId();
+      const parentId = parent.plannerItemId ?? parent.backlogNoteId!;
+      const path = `${userId}/${parentId}/${id}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const { error: uploadError } = await supabase.storage.from("planner-attachments").upload(path, file, { contentType: file.type || "application/octet-stream" });
+      throwIfError(uploadError);
+      uploaded.push({ id, path });
 
-    const id = createAttachmentId();
-    const parentId = parent.plannerItemId ?? parent.backlogNoteId!;
-    const path = `${userId}/${parentId}/${id}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    const supabase = createClient();
-    const { error: uploadError } = await supabase.storage.from("planner-attachments").upload(path, file, { contentType: file.type || "application/octet-stream" });
-    throwIfError(uploadError);
-
-    const { error: insertError } = await supabase.from("attachments").insert({
-      id,
-      user_id: userId,
-      planner_item_id: parent.plannerItemId ?? null,
-      backlog_note_id: parent.backlogNoteId ?? null,
-      storage_path: path,
-      file_name: file.name,
-      mime_type: file.type || "application/octet-stream",
-      size_bytes: file.size
-    });
-    if (insertError) {
-      await supabase.storage.from("planner-attachments").remove([path]);
+      const { error: insertError } = await supabase.from("attachments").insert({
+        id,
+        user_id: userId,
+        planner_item_id: parent.plannerItemId ?? null,
+        backlog_note_id: parent.backlogNoteId ?? null,
+        storage_path: path,
+        file_name: file.name,
+        mime_type: file.type || "application/octet-stream",
+        size_bytes: file.size
+      });
       throwIfError(insertError);
     }
+  } catch (error) {
+    if (uploaded.length) {
+      const { error: removeError } = await supabase.storage.from("planner-attachments").remove(uploaded.map((file) => file.path));
+      if (removeError) throw new Error("Не удалось загрузить все файлы и очистить неполную загрузку. Проверь вложения дела перед повторной попыткой.");
+      const { error: deleteError } = await supabase.from("attachments").delete().in("id", uploaded.map((file) => file.id));
+      if (deleteError) throw new Error("Не удалось очистить записи неполной загрузки. Обнови страницу и проверь вложения дела.");
+    }
+    throw error;
   }
 }
 

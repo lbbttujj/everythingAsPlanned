@@ -1052,6 +1052,40 @@ input[type="checkbox"] {
   padding-top: var(--space-3);
 }
 
+.today-category-empty {
+  margin: var(--space-3) 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--font-sm);
+}
+
+.today-category-add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  border: 1px dashed color-mix(in srgb, var(--task-category-color) 50%, var(--line));
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-sm);
+  font-weight: 650;
+}
+
+.today-category-add:hover {
+  background: color-mix(in srgb, var(--task-category-color) 12%, var(--surface));
+}
+
+.today-category-add span {
+  color: var(--task-category-color);
+  font-size: 20px;
+  line-height: 1;
+}
+
 .today-category-folder-content {
   overflow: clip;
 }
@@ -1166,6 +1200,289 @@ input[type="checkbox"] {
   overflow-wrap: anywhere;
   font-size: 15px;
   line-height: 1.3;
+}
+
+.todo-copy strong.task-title,
+.week-task strong.task-title,
+.daily-review-item-title strong.task-title {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.daily-review-item-title:has(.task-title) {
+  flex: 1;
+}
+
+.daily-review-item-title .task-title {
+  flex: 0 1 100%;
+}
+
+.task-attachment-picker,
+.task-attachment-copy {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.task-attachment-copy {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.task-attachment-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-attachment-copy small,
+.task-attachment-hint,
+.task-existing-attachments {
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
+
+.task-attachment-hint {
+  display: block;
+  margin-block: var(--space-2);
+}
+
+.task-picked-files {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-2) 0;
+  padding: 0;
+}
+
+.task-picked-files > li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 36px;
+  gap: var(--space-2);
+  align-items: center;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  background: var(--control);
+  font-size: var(--font-sm);
+}
+
+.task-picked-files button,
+.task-attachment-preview header button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.task-existing-attachments {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.task-attachments {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  text-decoration: none;
+}
+
+.task-attachments-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  min-width: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-raised);
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.task-attachments-trigger::-webkit-details-marker,
+.task-attachments-trigger::marker {
+  display: none;
+  content: "";
+}
+
+.daily-review .task-attachments-trigger::before {
+  content: none;
+}
+
+.todo-meta .task-attachments span,
+.daily-review .task-attachments summary span {
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.task-attachments-trigger:hover,
+.task-attachments[open] > summary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.task-attachments-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  width: min(280px, calc(100vw - 88px));
+  max-height: min(360px, 50dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-floating);
+  text-align: left;
+}
+
+.task-attachments-heading {
+  display: block;
+  padding: var(--space-3);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+
+.task-attachments-popover ul {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-attachments-popover li {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.task-attachments-popover button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-3);
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-sm);
+  text-align: left;
+}
+
+.task-attachments-popover button:hover {
+  background: var(--surface-hover);
+}
+
+.today-category-folder:has(.task-attachments[open]),
+.todo-item:has(.task-attachments[open]),
+.daily-review-list > li:has(.task-attachments[open]),
+.week-task:has(.task-attachments[open]) {
+  position: relative;
+  z-index: 15;
+}
+
+.today-category-folder-content:has(.task-attachments[open]) {
+  overflow: visible;
+}
+
+.task-attachment-error {
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  color: var(--danger);
+  font-size: var(--font-sm);
+  overflow-wrap: anywhere;
+}
+
+.task-save-error {
+  margin-inline: var(--space-4);
+}
+
+.action-sheet-category-context {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-attachment-preview {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
+  max-height: 100dvh;
+  margin: 0;
+  border: 0;
+  padding: var(--space-4);
+  background: transparent;
+  color: var(--text);
+}
+
+.task-attachment-preview::backdrop {
+  background: var(--overlay);
+}
+
+.task-attachment-preview-content {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  width: min(100%, 1000px);
+  height: 100%;
+  margin: 0 auto;
+}
+
+.task-attachment-preview header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.task-attachment-preview header button {
+  width: 44px;
+  height: 44px;
+}
+
+.task-attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .todo-meta {

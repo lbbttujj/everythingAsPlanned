@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { TaskAttachments } from "@/components/task-attachments";
 import { getLocalDateKey, getWeekDays } from "@/lib/schedule";
 import { getTaskCategory, taskCategoryStyle } from "@/lib/task-categories";
 import type { ActionItem, TaskCategoryDefinition } from "@/lib/types";
@@ -148,9 +149,10 @@ export function WeekCalendar({ actions, onSendToReview, onAddForDate, onDelete, 
                     <li className={`week-task ${action.isCompleted ? "is-completed" : ""} ${action.isImportant ? "is-important" : ""}`} key={action.id}>
                       <button className={`todo-check ${action.isCompleted ? "is-completed" : ""}`} type="button" onClick={() => onToggleComplete(action.id)} aria-label={action.isCompleted ? `Вернуть «${action.title}» в дела` : `Отметить «${action.title}» выполненным`}>{action.isCompleted ? "✓" : null}</button>
                       <div className="week-task-copy">
-                        <strong>{action.title}</strong>
+                        <strong className="task-title" title={action.title}>{action.title}</strong>
                         {(() => { const category = getTaskCategory(categories, action.taskCategory); return <span className="task-category" style={taskCategoryStyle(category)}><span aria-hidden="true">{category.icon}</span>{category.title}</span>; })()}
                         {action.isImportant ? <span className="important-badge">Важно</span> : null}
+                        <TaskAttachments attachments={action.attachments} taskTitle={action.title} />
                       </div>
                       <div className="todo-actions">
                         {!action.isCompleted ? <button className="todo-action-button" type="button" onClick={() => onSendToReview(action.id)} aria-label={`В Разобрать: ${action.title}`} title="В Разобрать">↩</button> : null}

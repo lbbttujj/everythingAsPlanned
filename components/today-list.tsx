@@ -4,6 +4,7 @@ import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } 
 import { useId, useState } from "react";
 
 import { TaskCategoryArtwork } from "@/components/task-category-artwork";
+import { TaskAttachments } from "@/components/task-attachments";
 import type { ActionItem, TaskCategory, TaskCategoryDefinition } from "@/lib/types";
 import { getTaskCategory, taskCategoryStyle, uncategorizedTaskCategory } from "@/lib/task-categories";
 
@@ -13,7 +14,7 @@ type TodayListProps = {
   reviewActions: ActionItem[];
   todayKey: string;
   onSchedule: (id: string, date?: string) => Promise<void>;
-  onAdd: () => void;
+  onAdd: (categoryId?: string) => void;
   onDelete: (id: string) => void;
   onEdit: (action: ActionItem) => void;
   onToggleComplete: (id: string) => void;
@@ -33,7 +34,7 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
   const reduceMotion = useReducedMotion();
   const activeGroups = [...categories, uncategorizedTaskCategory]
     .map((category) => ({ category, actions: activeActions.filter((action) => getTaskCategory(categories, action.taskCategory).id === category.id) }))
-    .filter((group) => group.actions.length > 0);
+    .filter((group) => group.category.id !== "" || group.actions.length > 0);
   const renderCategory = (action: ActionItem) => {
     const category = getTaskCategory(categories, action.taskCategory);
     return <span className="task-category" style={taskCategoryStyle(category)}><span aria-hidden="true">{category.icon}</span>{category.title}</span>;
@@ -46,10 +47,11 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
     <li className={`todo-item ${action.isImportant ? "is-important" : ""} ${isMenuOpen ? "is-menu-open" : ""}`} style={taskCategoryStyle(category)} key={action.id}>
       <button className={`todo-check ${action.isCompleted ? "is-completed" : ""}`} type="button" onClick={() => onToggleComplete(action.id)} aria-label={`${action.isCompleted ? "Вернуть" : "Выполнить"} «${action.title}»`}>{action.isCompleted ? "✓" : null}</button>
       <div className="todo-copy">
-        <strong>{action.title}</strong>
-        {showCategory || action.isImportant ? <div className="todo-meta">
+        <strong className="task-title" title={action.title}>{action.title}</strong>
+        {showCategory || action.isImportant || action.attachments?.length ? <div className="todo-meta">
           {showCategory ? renderCategory(action) : null}
           {action.isImportant ? <span className="important-badge">Важно</span> : null}
+          <TaskAttachments attachments={action.attachments} taskTitle={action.title} />
         </div> : null}
       </div>
       <div className="todo-actions">
@@ -75,7 +77,7 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
         </div>
       </header>
 
-      <button className="today-quick-add" type="button" onClick={onAdd}>
+      <button className="today-quick-add" type="button" onClick={() => onAdd()}>
         <span className="today-quick-add-icon" aria-hidden="true">+</span>
         <span>Добавь одно небольшое дело…</span>
       </button>
@@ -86,7 +88,7 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
           <span>{activeActions.length} {activeActions.length === 1 ? "дело" : "дел"}</span>
         </div>
 
-        {activeActions.length ? (
+        {activeGroups.length ? (
           <motion.div layout className="today-category-folders">
             {activeGroups.map(({ category, actions: categoryActions }) => {
               const isExpanded = expandedCategories.includes(category.id);
@@ -110,9 +112,10 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
                 <div id={contentId} inert={!isExpanded}>
                 <AnimatePresence initial={false}>
                   {isExpanded ? <motion.div key="tasks" className="today-category-folder-content" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.22, ease: "easeInOut" }}>
-                    <motion.ul layout="position" className="todo-list" aria-label={`Дела группы «${category.title}»`}>
+                    {categoryActions.length ? <motion.ul layout="position" className="todo-list" aria-label={`Дела группы «${category.title}»`}>
                       {categoryActions.map((action) => renderTask(action, false))}
-                    </motion.ul>
+                    </motion.ul> : <p className="today-category-empty">В этой группе пока нет дел.</p>}
+                    <button className="today-category-add" type="button" onClick={() => onAdd(category.id)} aria-label={`Добавить дело в группу «${category.title}»`}><span aria-hidden="true">+</span> Добавить дело</button>
                   </motion.div> : null}
                 </AnimatePresence>
                 </div>
@@ -125,7 +128,7 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
             <span>○</span>
             <h3>Свободный день</h3>
             <p>Добавь одно небольшое дело, которое приблизит тебя к важному.</p>
-            <button className="button" type="button" onClick={onAdd}>Добавить дело</button>
+            <button className="button" type="button" onClick={() => onAdd()}>Добавить дело</button>
           </div>
         )}
       </motion.section>
@@ -140,8 +143,9 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
               return <li key={action.id} className={isMenuOpen ? "is-menu-open" : ""}>
               <div className="daily-review-item-header">
                 <div className="daily-review-item-title">
-                  <strong>{action.title}</strong>
+                  <strong className="task-title" title={action.title}>{action.title}</strong>
                   {renderCategory(action)}
+                  <TaskAttachments attachments={action.attachments} taskTitle={action.title} />
                 </div>
                 <div className="todo-actions">
                   <button className="todo-more-button" type="button" onClick={() => setOpenTaskMenuId((current) => current === action.id ? null : action.id)} aria-label={`Действия: ${action.title}`} aria-expanded={isMenuOpen} aria-haspopup="menu">⋯</button>
@@ -172,9 +176,10 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
               <li className={`todo-item ${action.isImportant ? "is-important" : ""}`} key={action.id}>
                 <button className="todo-check is-completed" type="button" onClick={() => onToggleComplete(action.id)} aria-label={`Вернуть «${action.title}» в текущие дела`}>✓</button>
                 <div className="todo-copy">
-                  <strong>{action.title}</strong>
+                  <strong className="task-title" title={action.title}>{action.title}</strong>
                   {renderCategory(action)}
                   {action.isImportant ? <span className="important-badge">Важно</span> : null}
+                  <TaskAttachments attachments={action.attachments} taskTitle={action.title} />
                 </div>
               </li>
             ))}

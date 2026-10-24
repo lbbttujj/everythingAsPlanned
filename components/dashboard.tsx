@@ -16,6 +16,7 @@ import { createEmptyGoalAssessment, calculateGoalAssessment, isGoalAssessmentCom
 import { deleteAction, deleteBacklogGroup, deleteBacklogNote, deleteRecurringTask, deleteTaskCategory, loadPlannerData, migrateLegacyLocalData, rolloverOngoingActions, saveAction, saveBacklogGroup, saveBacklogNote, saveRecurringTask, saveTaskCategory, uploadActionAttachments, uploadBacklogNoteAttachments } from "@/lib/planner-repository";
 import { calculateActScore, createActionFromDraft } from "@/lib/scoring";
 import { getLocalDateKey } from "@/lib/schedule";
+import { validateAttachmentFiles } from "@/lib/task-attachments";
 import { recurrenceDates } from "@/lib/recurrence";
 import { createClient } from "@/lib/supabase/client";
 import type { ActionDraft, ActionItem, ActDraft, BacklogGroup, GoalAnswerSet, GoalDraft, Recurrence, RecurringTask, TaskCategoryDefinition } from "@/lib/types";
@@ -306,6 +307,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [creatingInCategory, setCreatingInCategory] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModalClosing, setIsModalClosing] = useState(false);
   const [isModalPresented, setIsModalPresented] = useState(false);
@@ -314,6 +316,8 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<AppSection>("today");
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [modalError, setModalError] = useState("");
   const [currentDate, setCurrentDate] = useState(() => getLocalDateKey());
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
@@ -403,15 +407,24 @@ export function Dashboard({ userId, email }: DashboardProps) {
   };
 
   const handleSubmit = async () => {
+    if (isSaving) return;
     if (!draft.title.trim()) return;
     if (draft.kind === "goal" && !isGoalAssessmentComplete(draft.goalAssessment.answers, draft.goalAssessment.finalAnswer)) return;
 
+    const attachmentError = validateAttachmentFiles(attachmentFiles);
+    if (attachmentError) {
+      setModalError(attachmentError);
+      return;
+    }
     const normalized = normalizeActions(actions);
     const existing = editingId ? normalized.find((action) => action.id === editingId) ?? null : null;
     const order = existing?.order ?? normalized.length;
-    const next = buildActionFromDraft(draft, existing, order);
+    const next = buildActionFromDraft(draft.kind === "act" && creatingInCategory !== null ? { ...draft, taskCategory: creatingInCategory } : draft, existing, order);
 
+    setIsSaving(true);
+    setModalError("");
     try {
+      let attachmentActionId = next.id;
       const recurrence = next.kind === "act" && next.recurrence
         ? { ...next.recurrence, seriesId: editingRecurringTaskId ?? next.recurringTaskId ?? next.recurrence.seriesId ?? createId() }
         : next.recurrence;
@@ -429,6 +442,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           order: normalized.length + index,
           isCompleted: false
         }));
+        attachmentActionId = replacements[0]?.id ?? next.id;
 
         await saveRecurringTask(updatedTask, userId);
         await Promise.all(futureActions.map((action) => deleteAction(action.id)));
@@ -442,7 +456,12 @@ export function Dashboard({ userId, email }: DashboardProps) {
         if (recurringTask) await saveRecurringTask(recurringTask, userId);
         await Promise.all(scheduledActions.map((action) => saveAction(action, userId)));
       }
-      if (attachmentFiles.length) await uploadActionAttachments(next.id, attachmentFiles, userId);
+      // A retry after an upload error edits this saved task instead of creating a duplicate.
+      setEditingId(attachmentActionId);
+      setEditingRecurringTaskId(null);
+      setEditingRecurringSeriesId(null);
+      if (attachmentFiles.length) await uploadActionAttachments(attachmentActionId, attachmentFiles, userId);
+      setAttachmentFiles([]);
       const data = await loadPlannerData();
       setActions(normalizeActions(data.actions));
       setBacklogGroups(data.backlogGroups);
@@ -450,15 +469,22 @@ export function Dashboard({ userId, email }: DashboardProps) {
       setDraft(cloneDraft(defaultGoalDraft));
       setAttachmentFiles([]);
       setEditingId(null);
+      setCreatingInCategory(null);
       setEditingRecurringTaskId(null);
       setEditingRecurringSeriesId(null);
       closeActionModal();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Не удалось сохранить запись.");
+      setModalError(error instanceof Error ? error.message : "Не удалось сохранить запись.");
+      const refreshed = await loadPlannerData().catch(() => null);
+      if (refreshed) setActions(normalizeActions(refreshed.actions));
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleEdit = (action: ActionItem) => {
+    setModalError("");
+    setCreatingInCategory(null);
     setIsModalPresented(false);
     setEditingId(action.id);
     setEditingRecurringTaskId(null);
@@ -646,13 +672,19 @@ export function Dashboard({ userId, email }: DashboardProps) {
   };
 
   const handleCancel = () => {
+    if (isSaving) return;
+    setModalError("");
     setEditingId(null);
+    setCreatingInCategory(null);
     setEditingRecurringTaskId(null);
     setEditingRecurringSeriesId(null);
     closeActionModal();
   };
 
-  const handleAddClick = (kind: "goal" | "act", scheduledFor?: string) => {
+  const handleAddClick = (kind: "goal" | "act", scheduledFor?: string, categoryId?: string) => {
+    setModalError("");
+    setCreatingInCategory(kind === "act" && categoryId !== undefined ? categoryId : null);
+    setAttachmentFiles([]);
     if (modalCloseTimer.current) window.clearTimeout(modalCloseTimer.current);
     setIsModalClosing(false);
     setIsModalPresented(false);
@@ -664,7 +696,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
     } else {
       const actDraft = cloneDraft(defaultActDraft);
       if (actDraft.kind === "act") {
-        setDraft({ ...actDraft, scheduledFor: scheduledFor ?? getLocalDateKey(), isOngoing: !scheduledFor });
+        setDraft({ ...actDraft, taskCategory: categoryId ?? "", scheduledFor: scheduledFor ?? getLocalDateKey(), isOngoing: !scheduledFor });
       }
     }
     setIsModalOpen(true);
@@ -698,7 +730,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
-            <TodayList actions={todayActions} reviewActions={reviewActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={() => handleAddClick("act")} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} />
+            <TodayList actions={todayActions} reviewActions={reviewActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={(categoryId) => handleAddClick("act", undefined, categoryId)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} />
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} categories={taskCategories} />
           ) : activeSection === "backlog" ? (
@@ -746,13 +778,14 @@ export function Dashboard({ userId, email }: DashboardProps) {
               <div className={`modal-dialog ${draft.kind === "act" ? "action-modal-sheet" : ""} ${isModalClosing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="item-modal-title" onMouseDown={(event) => event.stopPropagation()}>
                 <div className="modal-topline">
                   <span className="section-kicker">{draft.kind === "goal" ? "Долгосрочное направление" : "Ближайшее действие"}</span>
-                  <button className="modal-close" type="button" onClick={handleCancel} aria-label="Закрыть окно">×</button>
+                  <button className="modal-close" type="button" onClick={handleCancel} aria-label="Закрыть окно" disabled={isSaving}>×</button>
                 </div>
                 <div id="item-modal-title" className="sr-only">{editingId ? "Редактировать запись" : "Добавить запись"}</div>
+                {modalError ? <p className="task-attachment-error task-save-error" role="alert">{modalError}</p> : null}
                 {draft.kind === "goal" ? (
                   <GoalForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} files={attachmentFiles} onFilesChange={setAttachmentFiles} />
                 ) : (
-                  <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} categories={taskCategories} />
+                  <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} categories={taskCategories} existingAttachments={editingId ? actions.find((action) => action.id === editingId)?.attachments : undefined} isSaving={isSaving} isCategoryLocked={creatingInCategory !== null} lockedCategoryTitle={taskCategories.find((category) => category.id === creatingInCategory)?.title ?? "Без группы"} />
                 )}
               </div>
             </ActionModalViewport>

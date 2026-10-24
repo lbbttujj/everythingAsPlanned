@@ -50,7 +50,7 @@ The user has explicitly requested automatic local commits after completed tasks.
 
 The app is client-side with Supabase authentication and repositories; `LocalStorage` holds UI preferences and legacy records awaiting migration. Do not store secrets there. Preserve backward compatibility when changing `ActionItem` and legacy normalization.
 
-Today groups start collapsed, use two columns, and expand independently across both columns in their existing order. Disclosure state is local to the mounted Today screen and does not change records. Illustrations derive from existing category `icon` and `color`; no image field is stored. Keep the colored left accent on group containers only.
+Today groups, including empty user categories, start collapsed, use two columns, and expand independently across both columns in their existing order. An expanded group can create a task with that category preselected and its category selector hidden. Disclosure state is local to the mounted Today screen and does not change records. Illustrations derive from existing category `icon` and `color`; no image field is stored. Keep the colored left accent on group containers only. Tasks can have multiple private attachments; preserve full filenames and use an authenticated Storage download for previews or downloads.
 
 Use `motion/react` for group layout and presence animation. Keep siblings in `LayoutGroup`, honor `MotionConfig reducedMotion="user"`, and avoid competing CSS transform transitions or manual DOM measurements. `app/design-system.css`, loaded after `app/globals.css`, is the current token/style layer.
 

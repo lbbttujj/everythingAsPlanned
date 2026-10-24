@@ -1,6 +1,7 @@
 "use client";
 
-import type { ActDraft, TaskCategoryDefinition } from "@/lib/types";
+import { TaskAttachmentPicker } from "@/components/task-attachment-picker";
+import type { ActDraft, Attachment, TaskCategoryDefinition } from "@/lib/types";
 import { getLocalDateKey } from "@/lib/schedule";
 
 type ActionFormProps = {
@@ -13,11 +14,14 @@ type ActionFormProps = {
   files: File[];
   onFilesChange: (files: File[]) => void;
   categories: TaskCategoryDefinition[];
+  existingAttachments?: Attachment[];
+  isSaving?: boolean;
+  isCategoryLocked?: boolean;
+  lockedCategoryTitle?: string;
 };
 
-export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLabel, isEditing, files, onFilesChange, categories }: ActionFormProps) {
+export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLabel, isEditing, files, onFilesChange, categories, existingAttachments = [], isSaving = false, isCategoryLocked = false, lockedCategoryTitle }: ActionFormProps) {
   const recurrence = draft.recurrence;
-  const selectedFile = files[0];
   const formattedDate = draft.scheduledFor ? draft.scheduledFor.split("-").reverse().join(".") : "";
   const oneYearFromToday = () => {
     const date = new Date();
@@ -35,6 +39,7 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
       <div className="action-sheet-heading">
         <span className="action-sheet-handle" aria-hidden="true" />
         <h2>{isEditing ? "Изменить дело" : "Новое дело"}</h2>
+        {isCategoryLocked ? <p className="action-sheet-category-context">В группе «{lockedCategoryTitle}»</p> : null}
       </div>
 
       <div className="action-sheet-form">
@@ -60,13 +65,13 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
             <span className="action-date-control"><span>{formattedDate || "Сегодня"}</span><input aria-label="Дата дела" type="date" value={draft.scheduledFor} onChange={(event) => onDraftChange({ ...draft, isOngoing: false, scheduledFor: event.target.value })} /></span>
           </label> : null}
 
-          <label className="action-setting-row">
+          {!isCategoryLocked ? <label className="action-setting-row">
             <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">◌</span>Группа</span>
             <select className="action-inline-select" aria-label="Группа дела" value={draft.taskCategory} onChange={(event) => onDraftChange({ ...draft, taskCategory: event.target.value as ActDraft["taskCategory"] })}>
               <option value="">◌ Без группы</option>
               {categories.map((category) => <option value={category.id} key={category.id}>{category.icon} {category.title}</option>)}
             </select>
-          </label>
+          </label> : null}
 
           <label className="action-setting-row action-toggle-row">
             <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">☆</span>Важное</span>
@@ -82,10 +87,7 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
             </select>
           </label>
 
-          <label className="action-setting-row action-file-row">
-            <span className="action-setting-label"><span className="action-setting-icon" aria-hidden="true">⌕</span>{selectedFile ? selectedFile.name : "Файл или фото"}</span>
-            <span className="action-file-button">{selectedFile ? "Заменить" : "Добавить"}<input aria-label="Добавить файл или фото" type="file" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => onFilesChange(Array.from(event.target.files ?? []).slice(0, 1))} /></span>
-          </label>
+          <TaskAttachmentPicker files={files} existingAttachments={existingAttachments} onFilesChange={onFilesChange} disabled={isSaving} />
         </div>
 
         {recurrence ? (
@@ -102,11 +104,11 @@ export function ActionForm({ draft, onDraftChange, onSubmit, onCancel, submitLab
         ) : null}
 
         <div className="action-sheet-actions">
-          <button className="button secondary" type="button" onClick={onCancel}>
+          <button className="button secondary" type="button" onClick={onCancel} disabled={isSaving}>
             Отмена
           </button>
-          <button className="button" type="button" onClick={onSubmit}>
-            {submitLabel}
+          <button className="button" type="button" onClick={onSubmit} disabled={isSaving || !draft.title.trim()}>
+            {isSaving ? "Сохраняем…" : submitLabel}
           </button>
         </div>
       </div>
