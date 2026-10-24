@@ -72,15 +72,10 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
     <motion.section layout="position" className="today-view">
       <header className="today-header">
         <div>
-          <h1>Сегодня</h1>
+          <h1 className="sr-only">Сегодня</h1>
           <p suppressHydrationWarning>{todayLabel()}</p>
         </div>
       </header>
-
-      <button className="today-quick-add" type="button" onClick={() => onAdd()}>
-        <span className="today-quick-add-icon" aria-hidden="true">+</span>
-        <span>Добавь одно небольшое дело…</span>
-      </button>
 
       <motion.section layout="position" className="today-list-panel">
         <div className="today-list-heading">

@@ -1552,7 +1552,7 @@ button {
 
 .daily-app {
   min-height: 100dvh;
-  padding: 22px 16px 112px;
+  padding: 22px 16px calc(96px + env(safe-area-inset-bottom));
 }
 
 .auth-shell {
@@ -1728,49 +1728,6 @@ button {
 
 .today-add-button span {
   font-size: 20px;
-  font-weight: 500;
-  line-height: 1;
-}
-
-.today-quick-add {
-  display: flex;
-  width: min(100%, 560px);
-  min-height: 48px;
-  align-items: center;
-  justify-self: center;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 0 14px;
-  background: #ffffff;
-  color: #8b8da0;
-  box-shadow: 0 8px 20px rgba(43, 48, 82, 0.04);
-  cursor: text;
-  font-size: 14px;
-  text-align: left;
-  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.today-quick-add:hover {
-  border-color: rgba(91, 92, 226, 0.34);
-  box-shadow: 0 12px 24px rgba(43, 48, 82, 0.08);
-  transform: translateY(-1px);
-}
-
-.today-quick-add:active {
-  transform: translateY(0) scale(0.99);
-}
-
-.today-quick-add-icon {
-  display: grid;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  background: #eef0ff;
-  color: var(--accent);
-  font-size: 17px;
   font-weight: 500;
   line-height: 1;
 }
@@ -3285,19 +3242,20 @@ button {
 .bottom-nav {
   position: fixed;
   z-index: 12;
-  bottom: max(14px, env(safe-area-inset-bottom));
-  left: 50%;
+  bottom: 0;
+  left: 0;
   display: grid;
-  width: min(calc(100vw - 24px), 660px);
+  width: 100%;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
-  transform: translateX(-50%);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 20px;
+  transform: none;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0;
   background: rgba(16, 19, 27, 0.84);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
   backdrop-filter: blur(22px);
-  padding: 6px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
 }
 
 .bottom-nav-item {
@@ -4220,7 +4178,7 @@ select {
     align-content: center;
     gap: 8px;
     transform: none;
-    border-radius: 26px;
+    border-radius: 0;
     padding: 10px;
   }
 

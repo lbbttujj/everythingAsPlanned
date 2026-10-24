@@ -660,7 +660,6 @@ body {
   flex-direction: column;
 }
 
-.today-quick-add,
 .input,
 .textarea,
 .select,
@@ -730,31 +729,11 @@ select {
   padding-right: 36px;
 }
 
-:is(.input, .textarea, .select, .action-sheet-title, .action-inline-select, .action-date-control, .action-file-button, .today-quick-add):focus-visible,
+:is(.input, .textarea, .select, .action-sheet-title, .action-inline-select, .action-date-control, .action-file-button):focus-visible,
 :is(.action-date-control, .action-file-button):has(input:focus-visible) {
   border-color: var(--accent);
   outline: 0;
   box-shadow: var(--ring);
-}
-
-.today-quick-add {
-  min-height: 56px;
-  padding-inline: var(--space-4);
-  color: var(--muted);
-  text-align: left;
-  box-shadow: var(--shadow-card);
-}
-
-.today-quick-add:hover {
-  border-color: var(--accent);
-  background: var(--surface-hover);
-  box-shadow: var(--shadow-card);
-}
-
-.today-quick-add:active {
-  background: var(--surface-raised);
-  border-color: var(--accent);
-  box-shadow: none;
 }
 
 .button,
@@ -2003,10 +1982,11 @@ input[type="checkbox"] {
 }
 
 .bottom-nav {
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+  border-radius: 0;
   background: var(--nav);
-  box-shadow: var(--shadow-floating);
+  box-shadow: none;
   backdrop-filter: blur(20px) saturate(1.2);
 }
 
