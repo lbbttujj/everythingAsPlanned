@@ -1,9 +1,13 @@
 "use client";
 
-import { type PointerEvent, type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { closestCenter, DndContext, DragOverlay, KeyboardSensor, MouseSensor, pointerWithin, TouchSensor, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { SharedListsBoard } from "@/components/shared-lists-board";
+import { TaskCategoryArtwork } from "@/components/task-category-artwork";
 import { createClient } from "@/lib/supabase/client";
 import type { Attachment, BacklogGroup } from "@/lib/types";
 
@@ -27,6 +31,7 @@ type BacklogBoardProps = {
   onUpdateGroup: (groupId: string, changes: Partial<Pick<BacklogGroup, "title" | "parentId" | "icon">>) => void;
   onUpdateNote: (groupId: string, noteId: string, text: string) => void;
   onReorderGroups: (draggedGroupId: string, targetGroupId: string) => void;
+  isReorderingGroups: boolean;
   userId: string;
   email: string;
   friendsRevision: number;
@@ -37,6 +42,36 @@ function fallbackIcon(group: Pick<BacklogGroup, "id" | "title" | "icon">) {
   const source = group.id || group.title;
   const index = [...source].reduce((sum, character) => sum + character.charCodeAt(0), 0) % GROUP_ICONS.length;
   return GROUP_ICONS[index];
+}
+
+function groupTone(id: string) {
+  return [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 5;
+}
+
+function countLabel(count: number, singular: string, plural: string, many: string) {
+  const lastTwo = count % 100;
+  if (lastTwo >= 11 && lastTwo <= 14) return `${count} ${many}`;
+  const last = count % 10;
+  return `${count} ${last === 1 ? singular : last >= 2 && last <= 4 ? plural : many}`;
+}
+
+const groupCollisionDetection: CollisionDetection = (args) => args.pointerCoordinates ? pointerWithin(args) : closestCenter(args);
+
+function ThoughtGroupTileFace({ group, childCount }: { group: BacklogGroup; childCount: number }) {
+  return <>
+    <span className="thoughts-tile-artwork"><TaskCategoryArtwork icon={fallbackIcon(group)} /></span>
+    <span className="thoughts-tile-copy"><strong title={group.title}>{group.title}</strong><small>{childCount ? `${countLabel(childCount, "подгруппа", "подгруппы", "подгрупп")} · ` : ""}{countLabel(group.notes.length, "запись", "записи", "записей")}</small></span>
+    <span className="thoughts-tile-arrow" aria-hidden="true">›</span>
+  </>;
+}
+
+function SortableThoughtGroupTile({ group, childCount, onOpen, disabled, lastDragAt }: { group: BacklogGroup; childCount: number; onOpen: (id: string) => void; disabled: boolean; lastDragAt: React.RefObject<number> }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.id, disabled });
+  return <div ref={setNodeRef} className="thoughts-sortable" style={{ transform: CSS.Transform.toString(transform), transition }}>
+    <button className={`thoughts-tile ${isDragging ? "is-dragging" : ""}`} data-tone={groupTone(group.id)} type="button" onClick={() => { if (Date.now() - lastDragAt.current > 500) onOpen(group.id); }} {...attributes} {...listeners} aria-label={`Открыть группу «${group.title}». Удерживайте для перемещения`}>
+      <ThoughtGroupTileFace group={group} childCount={childCount} />
+    </button>
+  </div>;
 }
 
 function descendantIds(groups: BacklogGroup[], rootId: string) {
@@ -68,7 +103,7 @@ function buildBreadcrumbs(groups: BacklogGroup[], currentGroupId: string | null)
   return result;
 }
 
-export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onUpdateGroup, onUpdateNote, onReorderGroups, userId, email, friendsRevision }: BacklogBoardProps) {
+export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGroup, onDeleteGroup, onDeleteNote, onUpdateGroup, onUpdateNote, onReorderGroups, isReorderingGroups, userId, email, friendsRevision }: BacklogBoardProps) {
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
   const [mode, setMode] = useState<"personal" | "shared">("personal");
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
@@ -85,12 +120,23 @@ export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGro
   const [editedIcon, setEditedIcon] = useState(GROUP_ICONS[0]);
   const [renamedTitle, setRenamedTitle] = useState("");
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
-  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  const lastDragAt = useRef(0);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 7 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 240, tolerance: 7 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const currentGroup = groups.find((group) => group.id === currentGroupId) ?? null;
   const breadcrumbs = useMemo(() => buildBreadcrumbs(groups, currentGroupId), [groups, currentGroupId]);
   const visibleGroups = useMemo(() => groups.filter((group) => group.parentId === currentGroupId).sort((left, right) => left.order - right.order), [groups, currentGroupId]);
+  const childCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const group of groups) if (group.parentId) counts.set(group.parentId, (counts.get(group.parentId) ?? 0) + 1);
+    return counts;
+  }, [groups]);
+  const draggedGroup = visibleGroups.find((group) => group.id === draggedGroupId);
   const blockedMoveIds = currentGroup ? descendantIds(groups, currentGroup.id) : new Set<string>();
   const moveTargets = groups.filter((group) => !blockedMoveIds.has(group.id)).sort((left, right) => left.title.localeCompare(right.title, "ru"));
 
@@ -124,31 +170,15 @@ export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGro
     setEditingNoteText("");
   };
 
-  const clearDragState = () => {
+  const startGroupDrag = (event: DragStartEvent) => {
+    lastDragAt.current = Date.now();
+    setDraggedGroupId(String(event.active.id));
+  };
+
+  const endGroupDrag = (event: DragEndEvent) => {
+    lastDragAt.current = Date.now();
     setDraggedGroupId(null);
-    setDragOverGroupId(null);
-  };
-
-  const findGroupAtPoint = (clientX: number, clientY: number) => document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-thought-group-id]")?.dataset.thoughtGroupId ?? null;
-
-  const startTouchDrag = (event: PointerEvent<HTMLSpanElement>, groupId: string) => {
-    if (event.pointerType !== "touch") return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDraggedGroupId(groupId);
-  };
-
-  const moveTouchDrag = (event: PointerEvent<HTMLSpanElement>) => {
-    if (event.pointerType !== "touch" || !draggedGroupId) return;
-    event.preventDefault();
-    const targetId = findGroupAtPoint(event.clientX, event.clientY);
-    setDragOverGroupId(targetId && targetId !== draggedGroupId ? targetId : null);
-  };
-
-  const endTouchDrag = (event: PointerEvent<HTMLSpanElement>) => {
-    if (event.pointerType !== "touch" || !draggedGroupId) return;
-    const targetId = findGroupAtPoint(event.clientX, event.clientY);
-    if (targetId && targetId !== draggedGroupId) onReorderGroups(draggedGroupId, targetId);
-    clearDragState();
+    if (event.over && event.active.id !== event.over.id) onReorderGroups(String(event.active.id), String(event.over.id));
   };
 
   const viewAttachment = async (attachment: Attachment) => {
@@ -227,19 +257,16 @@ export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGro
       ) : null}
 
       {visibleGroups.length ? (
-        <div className="thoughts-grid">
-          {visibleGroups.map((group) => {
-            const childCount = groups.filter((item) => item.parentId === group.id).length;
-            return (
-              <button className={`thoughts-tile ${dragOverGroupId === group.id ? "is-drag-over" : ""}`} type="button" key={group.id} data-thought-group-id={group.id} onClick={() => openGroup(group.id)} onDragOver={(event) => { if (draggedGroupId === group.id) return; event.preventDefault(); setDragOverGroupId(group.id); }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const sourceId = event.dataTransfer.getData("text/plain") || draggedGroupId; if (sourceId && sourceId !== group.id) onReorderGroups(sourceId, group.id); clearDragState(); }}>
-                <span className="thoughts-tile-icon">{fallbackIcon(group)}</span>
-                <span className="thoughts-tile-copy"><strong>{group.title}</strong><small>{childCount ? `${childCount} подгрупп · ` : ""}{group.notes.length} записей</small></span>
-                <span className="thoughts-tile-arrow" aria-hidden="true">›</span>
-                <span className="thoughts-tile-drag" draggable onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", group.id); setDraggedGroupId(group.id); }} onDragEnd={clearDragState} onPointerDown={(event) => startTouchDrag(event, group.id)} onPointerMove={moveTouchDrag} onPointerUp={endTouchDrag} onPointerCancel={clearDragState} aria-label={`Изменить порядок группы «${group.title}»`}>⠿</span>
-              </button>
-            );
-          })}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={groupCollisionDetection} onDragStart={startGroupDrag} onDragEnd={endGroupDrag} onDragCancel={() => { lastDragAt.current = Date.now(); setDraggedGroupId(null); }}>
+          <SortableContext items={visibleGroups.map((group) => group.id)} strategy={rectSortingStrategy}>
+            <div className="thoughts-grid" aria-label="Группы мыслей">
+              {visibleGroups.map((group) => <SortableThoughtGroupTile key={group.id} group={group} childCount={childCounts.get(group.id) ?? 0} onOpen={openGroup} disabled={isReorderingGroups} lastDragAt={lastDragAt} />)}
+            </div>
+          </SortableContext>
+          {typeof document !== "undefined" ? createPortal(<DragOverlay adjustScale>
+            {draggedGroup ? <div className="thoughts-tile is-overlay" data-tone={groupTone(draggedGroup.id)}><ThoughtGroupTileFace group={draggedGroup} childCount={childCounts.get(draggedGroup.id) ?? 0} /></div> : null}
+          </DragOverlay>, document.body) : null}
+        </DndContext>
       ) : !currentGroup || !currentGroup.notes.length ? <div className="thoughts-empty"><span>✦</span><h2>{currentGroup ? "Здесь пока пусто" : "Место для мыслей"}</h2><p>{currentGroup ? "Добавь подгруппу или первую запись." : "Создай группу для идей, планов и заметок без даты."}</p></div> : null}
 
       {currentGroup && isAddingNote ? (
@@ -303,7 +330,7 @@ function GroupIconPicker({ value, onChange }: { value: string; onChange: (icon: 
 }
 
 function ThoughtsHeader() {
-  return <header className="backlog-header"><div><div className="section-kicker">Пространство без срока</div><h1>Мысли</h1></div></header>;
+  return <header className="backlog-header"><h1>Мысли</h1></header>;
 }
 
 function BacklogModeSwitch({ mode, onChange }: { mode: "personal" | "shared"; onChange: (mode: "personal" | "shared") => void }) {

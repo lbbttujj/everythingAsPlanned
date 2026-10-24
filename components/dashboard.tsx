@@ -302,6 +302,7 @@ type DashboardProps = {
 export function Dashboard({ userId, email }: DashboardProps) {
   const [actions, setActions] = useState<ActionItem[]>([]);
   const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>([]);
+  const [isReorderingGroups, setIsReorderingGroups] = useState(false);
   const [taskCategories, setTaskCategories] = useState<TaskCategoryDefinition[]>([]);
   const [draft, setDraft] = useState<ActionDraft>(cloneDraft(defaultGoalDraft));
   const [sortKey, setSortKey] = useState<SortKey>("score");
@@ -650,24 +651,33 @@ export function Dashboard({ userId, email }: DashboardProps) {
   };
 
   const handleReorderBacklogGroups = async (draggedGroupId: string, targetGroupId: string) => {
+    if (isReorderingGroups) return;
     const dragged = backlogGroups.find((group) => group.id === draggedGroupId);
     const target = backlogGroups.find((group) => group.id === targetGroupId);
     if (!dragged || !target || dragged.parentId !== target.parentId) return;
     const ordered = backlogGroups.filter((group) => group.parentId === dragged.parentId).sort((left, right) => left.order - right.order);
-      const draggedIndex = ordered.findIndex((group) => group.id === draggedGroupId);
-      const targetIndex = ordered.findIndex((group) => group.id === targetGroupId);
+    const draggedIndex = ordered.findIndex((group) => group.id === draggedGroupId);
+    const targetIndex = ordered.findIndex((group) => group.id === targetGroupId);
+    if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) return;
 
-      if (draggedIndex < 0 || targetIndex < 0) return;
-
-      const next = [...ordered];
-      const [draggedGroup] = next.splice(draggedIndex, 1);
-      next.splice(targetIndex, 0, draggedGroup);
-      const reordered = next.map((group, index) => ({ ...group, order: index }));
+    const next = [...ordered];
+    const [draggedGroup] = next.splice(draggedIndex, 1);
+    next.splice(targetIndex, 0, draggedGroup);
+    const reordered = next.map((group, index) => ({ ...group, order: index }));
+    setIsReorderingGroups(true);
+    setBacklogGroups((current) => current.map((group) => reordered.find((item) => item.id === group.id) ?? group));
     try {
       await Promise.all(reordered.map((group) => saveBacklogGroup(group, userId)));
-      setBacklogGroups((current) => current.map((group) => reordered.find((item) => item.id === group.id) ?? group));
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Не удалось изменить порядок групп.");
+      setBacklogGroups((current) => current.map((group) => ordered.find((item) => item.id === group.id) ?? group));
+      const restored = await Promise.allSettled(ordered.map((group) => saveBacklogGroup(group, userId)));
+      if (restored.some((result) => result.status === "rejected")) {
+        const refreshed = await loadPlannerData().catch(() => null);
+        if (refreshed) setBacklogGroups(refreshed.backlogGroups);
+      }
+      setErrorMessage(restored.some((result) => result.status === "rejected") ? "Не удалось полностью восстановить порядок. Обнови страницу и проверь группы." : error instanceof Error ? error.message : "Не удалось изменить порядок групп.");
+    } finally {
+      setIsReorderingGroups(false);
     }
   };
 
@@ -734,7 +744,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} categories={taskCategories} />
           ) : activeSection === "backlog" ? (
-            <BacklogBoard groups={backlogGroups} onMoveNoteToToday={handleMoveNoteToToday} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} userId={userId} email={email} friendsRevision={friendsRevision} />
+            <BacklogBoard groups={backlogGroups} onMoveNoteToToday={handleMoveNoteToToday} onAddNote={handleAddBacklogNote} onCreateGroup={handleCreateBacklogGroup} onDeleteGroup={handleDeleteBacklogGroup} onDeleteNote={handleDeleteBacklogNote} onUpdateGroup={handleUpdateBacklogGroup} onUpdateNote={handleUpdateBacklogNote} onReorderGroups={handleReorderBacklogGroups} isReorderingGroups={isReorderingGroups} userId={userId} email={email} friendsRevision={friendsRevision} />
           ) : (
             <section className="goals-view">
               <header className="goals-header">

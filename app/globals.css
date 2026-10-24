@@ -4448,21 +4448,6 @@ select {
   transform: translateY(-2px);
 }
 
-.thoughts-tile.is-drag-over {
-  border-color: var(--accent);
-  background: #f2f2ff;
-}
-
-.thoughts-tile-icon {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 14px;
-  background: #f0f0ff;
-  font-size: 22px;
-}
-
 .thoughts-tile-copy {
   display: grid;
   min-width: 0;
@@ -4485,21 +4470,6 @@ select {
   color: #a5a7b8;
   font-size: 26px;
   font-weight: 300;
-}
-
-.thoughts-tile-drag {
-  position: absolute;
-  bottom: 7px;
-  left: 8px;
-  display: grid;
-  width: 26px;
-  height: 22px;
-  place-items: center;
-  color: #b4b6c5;
-  cursor: grab;
-  font-size: 14px;
-  touch-action: none;
-  user-select: none;
 }
 
 .thoughts-composer {
