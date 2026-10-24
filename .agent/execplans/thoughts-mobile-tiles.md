@@ -10,7 +10,7 @@ In Personal Thoughts, a group should look like the illustrated two-column group 
 - [x] Replace handle-only touch/HTML drag with an accessible sortable grid, long-press touch activation and a floating drag preview (2026-10-24 MSK).
 - [x] Apply illustrated card design in dark/light themes and update product/developer documentation (2026-10-24 MSK).
 - [x] Verify layout, mouse/keyboard, persistence, checks and localhost (2026-10-24 MSK).
-- [ ] Commit implementation and record its hash in CHANGELOG.
+- [x] Commit implementation as `c036686` and record its hash in CHANGELOG (2026-10-24 MSK).
 
 ## Surprises & Discoveries
 
@@ -36,7 +36,7 @@ In Personal Thoughts, a group should look like the illustrated two-column group 
 
 ## Outcomes & Retrospective
 
-The illustrated two-column Thoughts grid and removal of the kicker are visible in the local browser. The Dnd Kit interaction, navigation tap, optimistic save, reload persistence, Escape cancellation, both themes and restoration of original order were verified with mouse/keyboard. `npm run lint`, `npm run build`, `npm run typecheck` and `git diff --check` passed; localhost was restarted and opened successfully. Physical long-press touch remains untested. Commits are pending.
+The illustrated two-column Thoughts grid and removal of the kicker are visible in the local browser. The Dnd Kit interaction, navigation tap, optimistic save, reload persistence, Escape cancellation, both themes and restoration of original order were verified with mouse/keyboard. `npm run lint`, `npm run build`, `npm run typecheck` and `git diff --check` passed; localhost was restarted and opened successfully. Implementation commit `c036686` is recorded in the journal. Physical long-press touch remains untested.
 
 ## Context and Orientation
 
