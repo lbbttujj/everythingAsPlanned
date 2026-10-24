@@ -1492,6 +1492,9 @@ input[type="checkbox"] {
 
 .modal-backdrop.is-action-modal .action-modal-sheet {
   background: var(--surface) !important;
+  max-height: min(88dvh, 700px, 100%);
+  overscroll-behavior-y: contain;
+  scroll-padding-block: var(--space-3);
 }
 
 .action-sheet-handle {

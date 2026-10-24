@@ -42,6 +42,8 @@ Today groups start collapsed, use two columns, and expand independently across b
 
 Use `motion/react` for group layout and presence animation. Keep siblings in `LayoutGroup`, honor `MotionConfig reducedMotion="user"`, and avoid competing CSS transform transitions or manual DOM measurements. `app/design-system.css`, loaded after `app/globals.css`, is the current token/style layer.
 
+Task composer keyboard positioning is separate from group animation: `components/action-modal-viewport.tsx` uses VisualViewport resize/scroll events and only scrolls the active field inside the sheet. Apply it only to task dialogs; keep the CSS fallback and clean up all listeners/animation frames. Verify the native keyboard on iOS/Android when a real device is available.
+
 ## ExecPlans
 
 For complex features, significant refactors, or work expected to span multiple milestones, create and maintain an ExecPlan as described in `.agent/PLANS.md`. Use the plan from design through validation, record decisions and discoveries in it, and keep its progress current at every stopping point. Small fixes and isolated UI changes do not require an ExecPlan. When implementing a plan, proceed through the next milestone without asking the user to choose routine next steps.

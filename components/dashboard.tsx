@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ActionForm } from "@/components/action-form";
+import { ActionModalViewport } from "@/components/action-modal-viewport";
 import { ActionTable } from "@/components/action-table";
 import { BacklogBoard } from "@/components/backlog-board";
 import { GoalForm } from "@/components/goal-form";
@@ -741,7 +742,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
 
         {isModalOpen ? (
           <div className={`modal-backdrop ${draft.kind === "act" ? "is-action-modal" : ""} ${isModalPresented ? "is-presented" : ""} ${isModalClosing ? "is-closing" : ""}`} role="presentation" onMouseDown={handleCancel}>
-            <div className={draft.kind === "act" ? "action-modal-viewport" : undefined}>
+            <ActionModalViewport enabled={draft.kind === "act"}>
               <div className={`modal-dialog ${draft.kind === "act" ? "action-modal-sheet" : ""} ${isModalClosing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="item-modal-title" onMouseDown={(event) => event.stopPropagation()}>
                 <div className="modal-topline">
                   <span className="section-kicker">{draft.kind === "goal" ? "Долгосрочное направление" : "Ближайшее действие"}</span>
@@ -754,7 +755,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
                   <ActionForm draft={draft} isEditing={editingId !== null} onCancel={handleCancel} onDraftChange={setDraft} onSubmit={handleSubmit} submitLabel={editingId ? "Сохранить дело" : "Добавить дело"} files={attachmentFiles} onFilesChange={setAttachmentFiles} categories={taskCategories} />
                 )}
               </div>
-            </div>
+            </ActionModalViewport>
           </div>
         ) : null}
         {isRecurringModalOpen ? <RecurringManager actions={actions} onClose={() => setIsRecurringModalOpen(false)} onEditSeries={(seriesId) => { const action = actions.find((item) => item.recurrence?.seriesId === seriesId); if (action) { setIsRecurringModalOpen(false); setEditingRecurringTaskId(action.recurringTaskId ?? createId()); setEditingRecurringSeriesId(seriesId); setEditingId(action.id); setDraft(draftFromAction(action)); setAttachmentFiles([]); setIsModalOpen(true); } }} onDeleteSeries={async (seriesId) => { const seriesActions = actions.filter((action) => action.recurrence?.seriesId === seriesId); await Promise.all(seriesActions.map((action) => deleteAction(action.id))); const recurringTaskId = seriesActions[0]?.recurringTaskId; if (recurringTaskId) await deleteRecurringTask(recurringTaskId); setActions((current) => current.filter((action) => action.recurrence?.seriesId !== seriesId)); }} /> : null}
