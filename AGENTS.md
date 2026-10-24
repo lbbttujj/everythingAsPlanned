@@ -6,6 +6,7 @@
 - `components/` contains client-side UI features: `Dashboard`, forms, Today group tiles, the calendar, thoughts, shared lists, and goals. `task-category-artwork.tsx` provides decorative vector illustrations for Today groups.
 - `lib/` contains domain types, repository access, goal-assessment scoring, category labels, and legacy `LocalStorage` migration.
 - `docs/` contains product and architecture decisions in `project-log.md`.
+- `CHANGELOG.md` records completed application changes with their actual Git commit hashes, user-visible behavior, validation, and known limitations. Read its latest entries when continuing work.
 - `public/` contains PWA assets. Do not commit generated `.next/` output.
 
 ## Build, Test, and Development Commands
@@ -33,6 +34,17 @@ For Today groups, verify the initial two-column illustrated tile grid, opening f
 ## Commit & Pull Request Guidelines
 
 Use concise imperative commit messages, preferably scoped by area, such as `feat(goals): add block assessment`. Pull requests should explain the user-visible behavior, list validation commands, mention data-model or `LocalStorage` migrations, and include screenshots for visual changes.
+
+### Required task completion workflow
+
+The user has explicitly requested automatic local commits after completed tasks. This authorization persists across chats for this repository.
+
+1. After completing a task that changes files, run the relevant checks and create a local commit without asking for another confirmation. Commit only the task's changes; preserve unrelated user work. Do not make empty commits for questions or tasks with no file changes. If work is incomplete or a check fails, report that accurately rather than claiming completion.
+2. Every new commit must have a concise scoped subject and an explanatory body in Russian. Describe what changed, why, what was checked, and any meaningful unverified behavior or limitation. Avoid vague subjects such as "changes" or "fix" without context.
+3. Record each completed application change in `CHANGELOG.md`: date, actual commit hash, subject, human-readable behavior, validation results, and relevant limitations. Never invent a hash or record a planned change as completed. Obtain hashes from Git after creating the implementation commit.
+4. Commit the journal update as a separate documentation commit when needed, with an explanatory body too. A commit that only maintains the journal or contributor instructions does not need a self-referential entry in `CHANGELOG.md`; its own Git message is the record. This avoids an endless chain of commits just to record the journal's latest hash.
+5. Keep `docs/project-log.md` and other relevant specifications current when application behavior changes; `CHANGELOG.md` maps those changes to commits and does not replace architecture/design documentation.
+6. Check final `git status` and report the created commit hashes. A request for automatic commits does not authorize automatic pushes, deployments, or rewriting earlier Git history.
 
 ## Architecture & Configuration Notes
 
