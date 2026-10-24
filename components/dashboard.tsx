@@ -304,6 +304,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
   const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>([]);
   const [isReorderingGroups, setIsReorderingGroups] = useState(false);
   const [taskCategories, setTaskCategories] = useState<TaskCategoryDefinition[]>([]);
+  const [isReorderingCategories, setIsReorderingCategories] = useState(false);
   const [draft, setDraft] = useState<ActionDraft>(cloneDraft(defaultGoalDraft));
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -681,6 +682,34 @@ export function Dashboard({ userId, email }: DashboardProps) {
     }
   };
 
+  const handleReorderCategories = async (draggedId: string, targetId: string) => {
+    if (isReorderingCategories) return;
+    const ordered = [...taskCategories].sort((left, right) => left.position - right.position);
+    const draggedIndex = ordered.findIndex((category) => category.id === draggedId);
+    const targetIndex = ordered.findIndex((category) => category.id === targetId);
+    if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) return;
+
+    const next = [...ordered];
+    const [draggedCategory] = next.splice(draggedIndex, 1);
+    next.splice(targetIndex, 0, draggedCategory);
+    const reordered = next.map((category, index) => ({ ...category, position: index }));
+    setIsReorderingCategories(true);
+    setTaskCategories(reordered);
+    try {
+      await Promise.all(reordered.map((category) => saveTaskCategory(category, userId)));
+    } catch (error) {
+      setTaskCategories(ordered);
+      const restored = await Promise.allSettled(ordered.map((category) => saveTaskCategory(category, userId)));
+      if (restored.some((result) => result.status === "rejected")) {
+        const refreshed = await loadPlannerData().catch(() => null);
+        if (refreshed) setTaskCategories(refreshed.taskCategories);
+      }
+      setErrorMessage(restored.some((result) => result.status === "rejected") ? "Не удалось полностью восстановить порядок. Обнови страницу и проверь группы." : error instanceof Error ? error.message : "Не удалось изменить порядок групп дел.");
+    } finally {
+      setIsReorderingCategories(false);
+    }
+  };
+
   const handleCancel = () => {
     if (isSaving) return;
     setModalError("");
@@ -740,7 +769,7 @@ export function Dashboard({ userId, email }: DashboardProps) {
         {errorMessage ? <p className="data-error" role="alert">{errorMessage}</p> : null}
         <div className="screen-transition" key={activeSection}>
           {activeSection === "today" ? (
-            <TodayList actions={todayActions} reviewActions={reviewActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={(categoryId) => handleAddClick("act", undefined, categoryId)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} />
+            <TodayList actions={todayActions} reviewActions={reviewActions} todayKey={todayKey} onSchedule={handleSchedule} onSendToReview={handleSendToReview} onAdd={(categoryId) => handleAddClick("act", undefined, categoryId)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} categories={taskCategories} onReorderCategories={handleReorderCategories} isReorderingCategories={isReorderingCategories} />
           ) : activeSection === "week" ? (
             <WeekCalendar actions={actActions.filter((action) => !action.needsReview)} onSendToReview={handleSendToReview} onAddForDate={(date) => handleAddClick("act", date)} onDelete={handleDelete} onEdit={handleEdit} onToggleComplete={handleToggleComplete} onManageRecurring={() => setIsRecurringModalOpen(true)} categories={taskCategories} />
           ) : activeSection === "backlog" ? (

@@ -932,6 +932,32 @@ input[type="checkbox"] {
   gap: var(--space-3);
 }
 
+.today-category-sortable {
+  min-width: 0;
+}
+
+.today-category-sortable.is-expanded {
+  grid-column: 1 / -1;
+}
+
+.today-category-sortable .today-category-folder {
+  width: 100%;
+}
+
+.today-category-folder.is-dragging {
+  opacity: 0.28;
+}
+
+.today-category-folder.is-overlay {
+  height: 100%;
+  box-shadow: var(--shadow-floating);
+  cursor: grabbing;
+}
+
+.today-category-sortable:not(.is-expanded) .today-category-folder-header {
+  touch-action: manipulation;
+}
+
 .today-category-folder,
 .today-category-folder:is(.is-home, .is-shared, .is-personal, .is-work, .is-health) {
   min-width: 0;
@@ -957,10 +983,6 @@ input[type="checkbox"] {
 
 .today-category-folder.is-collapsed .today-category-folder-header {
   min-height: 174px;
-}
-
-.today-category-folder.is-expanded {
-  grid-column: 1 / -1;
 }
 
 .today-category-folder.is-expanded .today-category-folder-header {
