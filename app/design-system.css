@@ -1742,6 +1742,81 @@ input[type="checkbox"] {
   background: transparent;
 }
 
+.thoughts-view.is-inside-group {
+  padding-bottom: calc(var(--space-6) * 2);
+}
+
+.thoughts-back-bar {
+  position: fixed;
+  z-index: 11;
+  right: 0;
+  bottom: calc(65px + env(safe-area-inset-bottom));
+  left: 0;
+  padding: 0;
+  background: var(--nav);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(20px) saturate(1.2);
+}
+
+.thoughts-back-button {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.thoughts-back-button:hover {
+  background: var(--surface-hover);
+  color: var(--accent);
+}
+
+.thoughts-back-button:active {
+  background: var(--accent-soft);
+}
+
+.thoughts-back-button-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+@media (min-width: 960px) {
+  .thoughts-back-bar {
+    right: 48px;
+    bottom: 24px;
+    left: 318px;
+    max-width: 1120px;
+    margin-inline: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thoughts-back-button {
+    transition: none;
+  }
+}
+
 .thoughts-folder-title > span,
 .shared-list-card-icon {
   border-color: var(--line);

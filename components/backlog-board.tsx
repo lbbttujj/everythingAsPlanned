@@ -147,6 +147,15 @@ export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGro
     setIsAddingNote(false);
   };
 
+  const goToParentGroup = () => {
+    if (!currentGroup) return;
+    setCurrentGroupId(currentGroup.parentId);
+    setIsGroupMenuOpen(false);
+    setIsAddingGroup(false);
+    setIsAddingNote(false);
+    setEditingNoteId(null);
+  };
+
   const submitGroup = () => {
     if (!groupTitle.trim()) return;
     onCreateGroup(groupTitle, currentGroupId, groupIcon);
@@ -213,7 +222,7 @@ export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGro
   }
 
   return (
-    <section className="backlog-view thoughts-view">
+    <section className={`backlog-view thoughts-view ${currentGroup ? "is-inside-group" : ""}`}>
       {!currentGroup ? <ThoughtsHeader /> : null}
       {!currentGroup ? <BacklogModeSwitch mode={mode} onChange={setMode} /> : null}
 
@@ -296,6 +305,16 @@ export function BacklogBoard({ groups, onMoveNoteToToday, onAddNote, onCreateGro
             ))}
           </ul>
         </section>
+      ) : null}
+
+      {currentGroup && typeof document !== "undefined" ? createPortal(
+        <div className="thoughts-back-bar">
+          <button className="thoughts-back-button" type="button" onClick={goToParentGroup} aria-label={currentGroup.parentId ? `Назад в группу «${groups.find((group) => group.id === currentGroup.parentId)?.title ?? "Мысли"}»` : "Назад к группам мыслей"}>
+            <span className="thoughts-back-button-icon" aria-hidden="true">←</span>
+            <span>Назад</span>
+          </button>
+        </div>,
+        document.body,
       ) : null}
 
       {groupDialog === "icon" && currentGroup ? (
