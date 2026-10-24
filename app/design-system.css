@@ -947,8 +947,16 @@ input[type="checkbox"] {
   transform: translateY(-1px);
 }
 
+.today-category-folders {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+
 .today-category-folder,
 .today-category-folder:is(.is-home, .is-shared, .is-personal, .is-work, .is-health) {
+  min-width: 0;
+  display: block;
   overflow: visible;
   border: 1px solid color-mix(in srgb, var(--task-category-color, var(--accent)) 38%, var(--line));
   border-left: 3px solid var(--task-category-color, var(--accent));
@@ -958,7 +966,124 @@ input[type="checkbox"] {
 }
 
 .today-category-folder-header {
-  min-height: 36px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12px;
+  align-items: center;
+  column-gap: var(--space-2);
+  row-gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.today-category-folder.is-collapsed .today-category-folder-header {
+  min-height: 174px;
+}
+
+.today-category-folder.is-expanded {
+  grid-column: 1 / -1;
+}
+
+.today-category-folder.is-expanded .today-category-folder-header {
+  grid-template-columns: 48px minmax(0, 1fr) 12px;
+}
+
+.today-category-folder-artwork {
+  display: grid;
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 112px;
+  place-items: center;
+  color: color-mix(in srgb, var(--task-category-color) 72%, var(--text));
+  pointer-events: none;
+}
+
+.today-category-folder.is-expanded .today-category-folder-artwork {
+  grid-column: auto;
+  height: 44px;
+}
+
+.task-category-artwork {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+}
+
+.task-category-artwork-halo {
+  fill: color-mix(in srgb, var(--task-category-color) 10%, transparent);
+}
+
+.task-category-artwork-orbit {
+  stroke: color-mix(in srgb, var(--task-category-color) 25%, transparent);
+}
+
+.task-category-artwork-spark {
+  fill: color-mix(in srgb, var(--task-category-color) 55%, var(--surface));
+}
+
+.task-category-artwork-back {
+  fill: color-mix(in srgb, var(--task-category-color) 42%, var(--surface));
+}
+
+.task-category-artwork-paper {
+  fill: var(--surface-raised);
+  stroke: color-mix(in srgb, var(--task-category-color) 58%, var(--line));
+  stroke-width: 1.5;
+}
+
+.task-category-artwork-icon-bg {
+  fill: color-mix(in srgb, var(--task-category-color) 18%, var(--surface));
+}
+
+.task-category-artwork-line {
+  stroke: color-mix(in srgb, var(--task-category-color) 35%, var(--line));
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.today-category-folder-copy {
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
+}
+
+.today-category-folder-content > .todo-list {
+  padding-top: var(--space-3);
+}
+
+.today-category-folder-content {
+  overflow: clip;
+}
+
+.today-category-folder-content:has(.is-menu-open) {
+  overflow: visible;
+}
+
+.today-category-folder-toggle {
+  display: grid;
+  width: 12px;
+  place-items: center;
+}
+
+.today-category-folder-toggle > i {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--muted);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 180ms ease;
+}
+
+.today-category-folder.is-collapsed .today-category-folder-toggle > i {
+  transform: rotate(-45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today-category-folder-toggle > i {
+    transition: none;
+  }
 }
 
 .today-category-folder:has(.todo-item.is-menu-open) {
@@ -969,6 +1094,8 @@ input[type="checkbox"] {
 .today-category-folder-header h3 {
   color: var(--text);
   font-size: var(--font-sm);
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .today-category-folder-icon {
@@ -1019,14 +1146,12 @@ input[type="checkbox"] {
   min-height: 64px;
   grid-template-columns: 36px minmax(0, 1fr) 40px;
   gap: 10px;
-  border-left: 3px solid var(--task-category-color, var(--accent));
   border-radius: var(--radius-lg);
   padding: 10px 8px 10px 10px;
 }
 
 .todo-item.is-important {
   border-color: color-mix(in srgb, var(--warn) 42%, var(--line));
-  border-left-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 7%, var(--surface));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 18%, transparent), var(--shadow-card);
 }

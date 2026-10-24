@@ -1,5 +1,7 @@
 # Design system refresh
 
+> Дополнение 2026-10-24: система уже включена в приложение; группы «Сегодня» представлены двухколоночными иллюстрированными плитками с полноширинным раскрытием через Motion. Цветная полоса остаётся у группы, у дел её нет. Текущая спецификация: `docs/design-system.md`; план: `.agent/execplans/today-group-tiles.md`.
+
 ## Purpose / Big Picture
 
 The planner should feel like one calm, premium mobile product. Buttons, selects, switches, inputs, cards, dialogs, and navigation must share a consistent visual language, work with touch and keyboard, and support light and dark themes. The existing Today, Week, Thoughts, Goals, and sign-in flows must keep their behavior.

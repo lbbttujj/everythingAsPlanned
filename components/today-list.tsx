@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
+import { useId, useState } from "react";
 
+import { TaskCategoryArtwork } from "@/components/task-category-artwork";
 import type { ActionItem, TaskCategory, TaskCategoryDefinition } from "@/lib/types";
 import { getTaskCategory, taskCategoryStyle, uncategorizedTaskCategory } from "@/lib/task-categories";
 
@@ -25,8 +27,10 @@ function todayLabel() {
 export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSendToReview, onAdd, onDelete, onEdit, onToggleComplete, categories }: TodayListProps) {
   const activeActions = actions.filter((action) => !action.isCompleted);
   const completedActions = actions.filter((action) => action.isCompleted);
-  const [collapsedCategories, setCollapsedCategories] = useState<TaskCategory[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<TaskCategory[]>([]);
   const [openTaskMenuId, setOpenTaskMenuId] = useState<string | null>(null);
+  const groupLayoutId = useId();
+  const reduceMotion = useReducedMotion();
   const activeGroups = [...categories, uncategorizedTaskCategory]
     .map((category) => ({ category, actions: activeActions.filter((action) => getTaskCategory(categories, action.taskCategory).id === category.id) }))
     .filter((group) => group.actions.length > 0);
@@ -61,7 +65,9 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
   };
 
   return (
-    <section className="today-view">
+    <MotionConfig reducedMotion="user" transition={{ layout: { type: "spring", duration: 0.42, bounce: 0.08 } }}>
+    <LayoutGroup id={groupLayoutId}>
+    <motion.section layout="position" className="today-view">
       <header className="today-header">
         <div>
           <h1>Сегодня</h1>
@@ -74,30 +80,46 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
         <span>Добавь одно небольшое дело…</span>
       </button>
 
-      <section className="today-list-panel">
+      <motion.section layout="position" className="today-list-panel">
         <div className="today-list-heading">
           <h2>Текущие дела</h2>
           <span>{activeActions.length} {activeActions.length === 1 ? "дело" : "дел"}</span>
         </div>
 
         {activeActions.length ? (
-          <div className="today-category-folders">
-            {activeGroups.map(({ category, actions: categoryActions }) => (
-              <section className={`today-category-folder ${collapsedCategories.includes(category.id) ? "is-collapsed" : ""}`} style={taskCategoryStyle(category)} key={category.id} aria-label={`${category.title}: ${categoryActions.length} дел`}>
-                <button className="today-category-folder-header" type="button" onClick={() => setCollapsedCategories((current) => current.includes(category.id) ? current.filter((item) => item !== category.id) : [...current, category.id])} aria-expanded={!collapsedCategories.includes(category.id)}>
-                  <span className="today-category-folder-icon" aria-hidden="true">{category.icon}</span>
-                  <div>
+          <motion.div layout className="today-category-folders">
+            {activeGroups.map(({ category, actions: categoryActions }) => {
+              const isExpanded = expandedCategories.includes(category.id);
+              const contentId = `${groupLayoutId}-group-${encodeURIComponent(category.id || "uncategorized")}`;
+
+              return (
+              <motion.section layout className={`today-category-folder ${isExpanded ? "is-expanded" : "is-collapsed"}`} style={{ ...taskCategoryStyle(category), borderRadius: 20 }} key={category.id} aria-label={`${category.title}: ${categoryActions.length} дел`}>
+                <motion.button layout="position" className="today-category-folder-header" type="button" onClick={() => {
+                  setOpenTaskMenuId(null);
+                  setExpandedCategories((current) => current.includes(category.id) ? current.filter((item) => item !== category.id) : [...current, category.id]);
+                }} aria-expanded={isExpanded} aria-controls={contentId}>
+                  <motion.span layout="position" className="today-category-folder-artwork" aria-hidden="true">
+                    <TaskCategoryArtwork icon={category.icon} />
+                  </motion.span>
+                  <motion.div layout="position" className="today-category-folder-copy">
                     <h3>{category.title}</h3>
                     <span>{categoryActions.length} {categoryActions.length === 1 ? "дело" : "дел"}</span>
-                  </div>
-                  <i aria-hidden="true" />
-                </button>
-                {!collapsedCategories.includes(category.id) ? <ul className="todo-list">
-                  {categoryActions.map((action) => renderTask(action, false))}
-                </ul> : null}
-              </section>
-            ))}
-          </div>
+                  </motion.div>
+                  <motion.span layout="position" className="today-category-folder-toggle" aria-hidden="true"><i /></motion.span>
+                </motion.button>
+                <div id={contentId} inert={!isExpanded}>
+                <AnimatePresence initial={false}>
+                  {isExpanded ? <motion.div key="tasks" className="today-category-folder-content" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.22, ease: "easeInOut" }}>
+                    <motion.ul layout="position" className="todo-list" aria-label={`Дела группы «${category.title}»`}>
+                      {categoryActions.map((action) => renderTask(action, false))}
+                    </motion.ul>
+                  </motion.div> : null}
+                </AnimatePresence>
+                </div>
+              </motion.section>
+              );
+            })}
+          </motion.div>
         ) : (
           <div className="today-empty-state">
             <span>○</span>
@@ -106,10 +128,10 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
             <button className="button" type="button" onClick={onAdd}>Добавить дело</button>
           </div>
         )}
-      </section>
+      </motion.section>
 
       {[{ title: "Разобрать", items: reviewActions }].map(({ title, items }) => (
-        <details className="daily-review" key={title}>
+        <motion.details layout="position" className="daily-review" key={title}>
           <summary>{title}<span>{items.length}</span></summary>
           {items.length ? <ul className="daily-review-list">
             {items.map((action) => {
@@ -136,11 +158,11 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
             </li>;
             })}
           </ul> : <p>Здесь пока нет дел.</p>}
-        </details>
+        </motion.details>
       ))}
 
       {completedActions.length ? (
-        <section className="completed-list" aria-label="Выполненные дела">
+        <motion.section layout="position" className="completed-list" aria-label="Выполненные дела">
           <div className="today-list-heading">
             <h2>Готово</h2>
             <span>{completedActions.length}</span>
@@ -157,8 +179,10 @@ export function TodayList({ actions, reviewActions, todayKey, onSchedule, onSend
               </li>
             ))}
           </ul>
-        </section>
+        </motion.section>
       ) : null}
-    </section>
+    </motion.section>
+    </LayoutGroup>
+    </MotionConfig>
   );
 }
