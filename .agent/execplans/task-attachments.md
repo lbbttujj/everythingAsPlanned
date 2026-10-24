@@ -12,7 +12,7 @@ Tasks can hold multiple files selected together or added in batches. Long filena
 - [x] Verify existing attachment read, local multi-selection/removal, and update current documentation (2026-10-24 MSK).
 - [x] Complete lint, production build, typecheck, and diff check (2026-10-24 MSK).
 - [x] Restore localhost on port 3000 and verify the uncategorized group add form (2026-10-24 MSK).
-- [ ] Commit implementation and record its hash in CHANGELOG.
+- [x] Commit implementation as `8f44d93` and record its hash in CHANGELOG (2026-10-24 MSK).
 
 ## Surprises & Discoveries
 
@@ -41,7 +41,7 @@ Tasks can hold multiple files selected together or added in batches. Long filena
 
 ## Outcomes & Retrospective
 
-Implementation and checks complete; final commit pending. The browser check confirmed that a group with zero tasks expands and opens a form with its name and no category select; the uncategorized group behaves likewise; a long task title remains inside its card; an existing attachment list opens and its image appears in the native viewer. Two harmless local files were selected simultaneously, one was removed, then the dialog was cancelled. No new files or tasks were uploaded and live user records were not mutated. Lint, production build, typecheck, and `git diff --check` passed. Localhost restarted successfully. Physical mobile preview/download and live multi-upload remain untested.
+Implementation committed as `8f44d93`; the journal entry records that hash. The browser check confirmed that a group with zero tasks expands and opens a form with its name and no category select; the uncategorized group behaves likewise; a long task title remains inside its card; an existing attachment list opens and its image appears in the native viewer. Two harmless local files were selected simultaneously, one was removed, then the dialog was cancelled. No new files or tasks were uploaded and live user records were not mutated. Lint, production build, typecheck, and `git diff --check` passed. Localhost restarted successfully. Physical mobile preview/download and live multi-upload remain untested.
 
 ## Context and Orientation
 
